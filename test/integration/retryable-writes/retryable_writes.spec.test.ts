@@ -14,6 +14,7 @@ interface RetryableWriteTestContext {
 
 describe('Legacy Retryable Writes Specs', function () {
   let ctx: RetryableWriteTestContext = {};
+
   const retryableWrites = loadSpecTests('retryable-writes', 'legacy');
 
   for (const suite of retryableWrites) {
@@ -44,10 +45,8 @@ describe('Legacy Retryable Writes Specs', function () {
         // Step 1: Test Setup. Includes a lot of boilerplate stuff
         // like creating a client, dropping and refilling data collections,
         // and enabling failpoints
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        //@ts-expect-error
-        const { specTest } = this.currentTest;
-        await executeScenarioSetup(suite, specTest, this.configuration, ctx);
+        const { spec } = this.currentTest;
+        await executeScenarioSetup(suite, spec, this.configuration, ctx);
       });
 
       afterEach(async function () {
@@ -63,11 +62,15 @@ describe('Legacy Retryable Writes Specs', function () {
         ctx = {}; // reset context
       });
 
-      for (const test of suite.tests) {
-        it(test.description, async function () {
-          // Step 2: Run the test
-          await executeScenarioTest(test, ctx);
-        }).specTest = test;
+      for (const spec of suite.tests) {
+        // Step 2: Run the test
+        const mochaTest = it(spec.description, async () => await executeScenarioTest(spec, ctx));
+
+        // A pattern we don't need to repeat for unified tests
+        // In order to give the beforeEach hook access to the
+        // spec test so it can be responsible for skipping it
+        // and executeScenarioSetup
+        mochaTest.spec = spec;
       }
     });
   }
@@ -111,16 +114,23 @@ async function executeScenarioSetup(scenario, test, config, ctx) {
 async function executeScenarioTest(test, ctx) {
   const args = generateArguments(test);
 
+  // In case the spec files or our API changes
+  expect(ctx.collection).to.have.property(test.operation.name).that.is.a('function');
+
   let thrownError;
-  let result = await ctx.collection[test.operation.name](...args).catch(error => {
+  let result;
+  try {
+    result = await ctx.collection[test.operation.name](...args);
+  } catch (error) {
     thrownError = error;
-  });
+  }
 
   const outcome = test.outcome && test.outcome.result;
   const errorLabelsContain = outcome && outcome.errorLabelsContain;
   const errorLabelsOmit = outcome && outcome.errorLabelsOmit;
   const hasResult = outcome && !errorLabelsContain && !errorLabelsOmit;
   if (test.outcome.error) {
+    expect(thrownError, `${test.operation.name} was supposed to fail but did not!`).to.exist;
     expect(thrownError).to.have.property('message');
 
     if (hasResult) {
@@ -137,6 +147,7 @@ async function executeScenarioTest(test, ctx) {
       }
     }
   } else if (test.outcome.result) {
+    expect(thrownError, thrownError?.stack).to.not.exist;
     const expected = test.outcome.result;
     result = transformToResultValue(result);
     expect(result).to.deep.include(expected);

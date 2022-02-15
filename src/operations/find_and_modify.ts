@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { MongoCompatibilityError, MongoInvalidArgumentError } from '../error';
 import { ReadPreference } from '../read_preference';
@@ -170,7 +171,10 @@ class FindAndModifyOperation extends CommandOperation<Document> {
       // TODO: once this method becomes a CommandOperation we will have the server
       // in place to check.
       const unacknowledgedWrite = this.writeConcern?.w === 0;
-      if (unacknowledgedWrite || maxWireVersion(server) < 8) {
+      if (
+        unacknowledgedWrite ||
+        maxWireVersion(server) < MONGODB_WIRE_VERSION.SHARDED_TRANSACTIONS
+      ) {
         callback(
           new MongoCompatibilityError(
             'The current topology does not support a hint on findAndModify commands'
@@ -183,7 +187,7 @@ class FindAndModifyOperation extends CommandOperation<Document> {
       cmd.hint = options.hint;
     }
 
-    if (this.explain && maxWireVersion(server) < 4) {
+    if (this.explain && maxWireVersion(server) < MONGODB_WIRE_VERSION.FIND_COMMAND) {
       callback(
         new MongoCompatibilityError(
           `Server ${server.name} does not support explain on findAndModify`

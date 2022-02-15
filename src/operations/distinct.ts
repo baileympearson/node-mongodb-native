@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { MongoCompatibilityError } from '../error';
 import type { Server } from '../sdam/server';
@@ -67,7 +68,7 @@ export class DistinctOperation extends CommandOperation<any[]> {
       return callback(err);
     }
 
-    if (this.explain && maxWireVersion(server) < 4) {
+    if (this.explain && maxWireVersion(server) < MONGODB_WIRE_VERSION.FIND_COMMAND) {
       callback(
         new MongoCompatibilityError(`Server ${server.name} does not support explain on distinct`)
       );

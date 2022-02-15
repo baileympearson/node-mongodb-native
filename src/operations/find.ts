@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { isSharded } from '../cmap/wire_protocol/shared';
 import type { Collection } from '../collection';
 import { MongoCompatibilityError, MongoInvalidArgumentError } from '../error';
@@ -68,8 +69,6 @@ export interface FindOptions<TSchema extends Document = Document> extends Comman
   let?: Document;
 }
 
-const SUPPORTS_WRITE_CONCERN_AND_COLLATION = 5;
-
 /** @internal */
 export class FindOperation extends CommandOperation<Document> {
   options: FindOptions;
@@ -109,14 +108,17 @@ export class FindOperation extends CommandOperation<Document> {
 
     const serverWireVersion = maxWireVersion(server);
     const options = this.options;
-    if (options.allowDiskUse != null && serverWireVersion < 4) {
+    if (options.allowDiskUse != null && serverWireVersion < MONGODB_WIRE_VERSION.FIND_COMMAND) {
       callback(
         new MongoCompatibilityError('Option "allowDiskUse" is not supported on MongoDB < 3.2')
       );
       return;
     }
 
-    if (options.collation && serverWireVersion < SUPPORTS_WRITE_CONCERN_AND_COLLATION) {
+    if (
+      options.collation &&
+      serverWireVersion < MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN
+    ) {
       callback(
         new MongoCompatibilityError(
           `Server ${server.name}, which reports wire version ${serverWireVersion}, does not support collation`
@@ -126,7 +128,7 @@ export class FindOperation extends CommandOperation<Document> {
       return;
     }
 
-    if (serverWireVersion < 4) {
+    if (serverWireVersion < MONGODB_WIRE_VERSION.FIND_COMMAND) {
       if (this.readConcern && this.readConcern.level !== 'local') {
         callback(
           new MongoCompatibilityError(

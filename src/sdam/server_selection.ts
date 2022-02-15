@@ -1,3 +1,4 @@
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { MongoCompatibilityError, MongoInvalidArgumentError } from '../error';
 import { ReadPreference } from '../read_preference';
 import { ServerType, TopologyType } from './common';
@@ -7,9 +8,6 @@ import type { TopologyDescription } from './topology_description';
 // max staleness constants
 const IDLE_WRITE_PERIOD = 10000;
 const SMALLEST_MAX_STALENESS_SECONDS = 90;
-
-//  Minimum version to try writes on secondaries.
-export const MIN_SECONDARY_WRITE_WIRE_VERSION = 13;
 
 /** @public */
 export type ServerSelector = (
@@ -64,7 +62,7 @@ export function secondaryWritableServerSelector(
   if (
     !readPreference ||
     !wireVersion ||
-    (wireVersion && wireVersion < MIN_SECONDARY_WRITE_WIRE_VERSION)
+    (wireVersion && wireVersion < MONGODB_WIRE_VERSION.WIRE_VERSION_50)
   ) {
     return readPreferenceServerSelector(ReadPreference.primary);
   }

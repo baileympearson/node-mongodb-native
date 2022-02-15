@@ -2,6 +2,7 @@ import Denque = require('denque');
 import type { Readable } from 'stream';
 
 import type { Document, Timestamp } from './bson';
+import { MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import { Collection } from './collection';
 import {
   AbstractCursor,
@@ -462,7 +463,10 @@ export class ChangeStreamCursor<TSchema extends Document = Document> extends Abs
         const resumeKey =
           this.options.startAfter && !this.hasReceived ? 'startAfter' : 'resumeAfter';
         Reflect.set(result, resumeKey, this.resumeToken);
-      } else if (this.startAtOperationTime && maxWireVersion(this.server) >= 7) {
+      } else if (
+        this.startAtOperationTime &&
+        maxWireVersion(this.server) >= MONGODB_WIRE_VERSION.REPLICA_SET_TRANSACTIONS
+      ) {
         result.startAtOperationTime = this.startAtOperationTime;
       }
     }
@@ -513,7 +517,7 @@ export class ChangeStreamCursor<TSchema extends Document = Document> extends Abs
         this.startAtOperationTime == null &&
         this.resumeAfter == null &&
         this.startAfter == null &&
-        maxWireVersion(server) >= 7
+        maxWireVersion(server) >= MONGODB_WIRE_VERSION.REPLICA_SET_TRANSACTIONS
       ) {
         this.startAtOperationTime = response.operationTime;
       }

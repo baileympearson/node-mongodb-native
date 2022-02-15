@@ -14,6 +14,7 @@
   - [`MongoDriverError`](#MongoDriverError)
     - [`MongoAPIError`](#MongoAPIError)
     - [`MongoRuntimeError`](#MongoRuntimeError)
+      - [`MongoUnexpectedServerResponseError`](#MongoUnexpectedServerResponseError)
   - [`MongoNetworkError`](#MongoNetworkError)
   - [`MongoServerError`](#MongoServerError)
   - [`MongoSystemError`](#MongoSystemError)
@@ -90,6 +91,11 @@ This class should **never** be directly instantiated.
 | **MongoChangeStreamError**  | Thrown when an error is encountered when operating on a ChangeStream.                      |
 | **MongoGridFSStreamError**  | Thrown when an unexpected state is reached when operating on a GridFS Stream.              |
 | **MongoGridFSChunkError**   | Thrown when a malformed or invalid chunk is encountered when reading from a GridFS Stream. |
+| **MongoUnexpectedServerResponseError**   | Thrown when the driver receives a **parsable** response it did not expect from the server |
+
+### MongoUnexpectedServerResponseError
+
+xxx
 
 ### `MongoNetworkError`
 

@@ -1,4 +1,5 @@
 import type { Document } from './bson';
+import { MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import type { TopologyVersion } from './sdam/server_description';
 import type { TopologyDescription } from './sdam/topology_description';
 
@@ -81,6 +82,17 @@ export const GET_MORE_RESUMABLE_CODES = new Set<number>([
 ]);
 
 /** @public */
+export const MONGODB_ERROR_LABELS = Object.freeze({
+  RetryableWriteError: 'RetryableWriteError',
+  TransientTransactionError: 'TransientTransactionError',
+  UnknownTransactionCommitResult: 'UnknownTransactionCommitResult',
+  ResumableChangeStreamError: 'ResumableChangeStreamError'
+} as const);
+
+/** @public */
+export type MONGODB_ERROR_LABELS = typeof MONGODB_ERROR_LABELS[keyof typeof MONGODB_ERROR_LABELS];
+
+/** @public */
 export interface ErrorDescription extends Document {
   message?: string;
   errmsg?: string;
@@ -88,6 +100,8 @@ export interface ErrorDescription extends Document {
   errorLabels?: string[];
   errInfo?: Document;
 }
+
+const kCreated = Symbol('created');
 
 /**
  * @public
@@ -99,6 +113,7 @@ export interface ErrorDescription extends Document {
 export class MongoError extends Error {
   /** @internal */
   [kErrorLabels]: Set<string>;
+  [kCreated]: Date;
   /**
    * This is a number in MongoServerError and a string in MongoDriverError
    * @privateRemarks
@@ -113,6 +128,7 @@ export class MongoError extends Error {
     } else {
       super(message);
     }
+    this[kCreated] = new Date();
   }
 
   get name(): string {
@@ -130,7 +146,7 @@ export class MongoError extends Error {
    * @param label - The error label to check for
    * @returns returns true if the error has the provided error label
    */
-  hasErrorLabel(label: string): boolean {
+  hasErrorLabel(label: MONGODB_ERROR_LABELS): boolean {
     if (this[kErrorLabels] == null) {
       return false;
     }
@@ -238,7 +254,7 @@ export class MongoRuntimeError extends MongoDriverError {
 }
 
 /**
- * An error generated when a batch command is reexecuted after one of the commands in the batch
+ * An error generated when a batch command is re-executed after one of the commands in the batch
  * has failed
  *
  * @public
@@ -400,6 +416,32 @@ export class MongoGridFSChunkError extends MongoRuntimeError {
 
   get name(): string {
     return 'MongoGridFSChunkError';
+  }
+}
+
+/**
+ * An error generated when a **parsable** unexpected response comes from the server.
+ * This is generally an error where the driver in a state expecting a certain behavior to occur in
+ * the next message from MongoDB but it receives something else.
+ * This error **does not** represent an issue with wire message formatting.
+ *
+ * #### Example
+ * When an operation fails, it is the driver's job to retry it. It must perform serverSelection
+ * again to make sure that it attempts the operation against a server in a good state. If server
+ * selection returns a server that does not support retryable operations, this error is used.
+ * This scenario is unlikely as retryable support would also have been determined on the first attempt
+ * but it is possible the state change could report a selectable server that does not support retries.
+ *
+ * @public
+ * @category Error
+ */
+export class MongoUnexpectedServerResponseError extends MongoRuntimeError {
+  constructor(message: string) {
+    super(message);
+  }
+
+  get name(): string {
+    return 'MongoUnexpectedServerResponseError';
   }
 }
 
@@ -690,8 +732,8 @@ export class MongoWriteConcernError extends MongoServerError {
   }
 }
 
-// see: https://github.com/mongodb/specifications/blob/master/source/retryable-writes/retryable-writes.rst#terms
-const RETRYABLE_ERROR_CODES = new Set<number>([
+// https://github.com/mongodb/specifications/blob/master/source/retryable-reads/retryable-reads.rst#retryable-error
+const RETRYABLE_READS_ERROR_CODES = new Set<number>([
   MONGODB_ERROR_CODES.HostUnreachable,
   MONGODB_ERROR_CODES.HostNotFound,
   MONGODB_ERROR_CODES.NetworkTimeout,
@@ -705,26 +747,21 @@ const RETRYABLE_ERROR_CODES = new Set<number>([
   MONGODB_ERROR_CODES.NotPrimaryOrSecondary
 ]);
 
+// see: https://github.com/mongodb/specifications/blob/master/source/retryable-writes/retryable-writes.rst#terms
 const RETRYABLE_WRITE_ERROR_CODES = new Set<number>([
-  MONGODB_ERROR_CODES.InterruptedAtShutdown,
-  MONGODB_ERROR_CODES.InterruptedDueToReplStateChange,
-  MONGODB_ERROR_CODES.NotWritablePrimary,
-  MONGODB_ERROR_CODES.NotPrimaryNoSecondaryOk,
-  MONGODB_ERROR_CODES.NotPrimaryOrSecondary,
-  MONGODB_ERROR_CODES.PrimarySteppedDown,
-  MONGODB_ERROR_CODES.ShutdownInProgress,
-  MONGODB_ERROR_CODES.HostNotFound,
-  MONGODB_ERROR_CODES.HostUnreachable,
-  MONGODB_ERROR_CODES.NetworkTimeout,
-  MONGODB_ERROR_CODES.SocketException,
+  ...RETRYABLE_READS_ERROR_CODES,
   MONGODB_ERROR_CODES.ExceededTimeLimit
 ]);
 
-export function isRetryableEndTransactionError(error: MongoError): boolean {
-  return error.hasErrorLabel('RetryableWriteError');
-}
-
-export function isRetryableWriteError(error: MongoError): boolean {
+export function isRetryableWriteError(error: MongoError, maxWireVersion: number): boolean {
+  if (maxWireVersion >= MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
+    // After 4.4 the error label is the only source of truth for retry writes
+    return error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
+  } else if (error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError)) {
+    // Before 4.4 the error label can be one way of identifying retry
+    // so we can return true if we have the label, but fall back to code checking below
+    return true;
+  }
   if (error instanceof MongoWriteConcernError) {
     return RETRYABLE_WRITE_ERROR_CODES.has(error.result?.code ?? error.code ?? 0);
   }
@@ -732,14 +769,31 @@ export function isRetryableWriteError(error: MongoError): boolean {
 }
 
 /** Determines whether an error is something the driver should attempt to retry */
-export function isRetryableError(error: MongoError): boolean {
-  return (
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    (typeof error.code === 'number' && RETRYABLE_ERROR_CODES.has(error.code!)) ||
-    error instanceof MongoNetworkError ||
-    !!error.message.match(new RegExp(LEGACY_NOT_WRITABLE_PRIMARY_ERROR_MESSAGE)) ||
-    !!error.message.match(new RegExp(NODE_IS_RECOVERING_ERROR_MESSAGE))
-  );
+export function isRetryableReadError(error: MongoError): boolean {
+  const hasRetryableErrorCode =
+    typeof error.code === 'number' ? RETRYABLE_READS_ERROR_CODES.has(error.code) : false;
+  if (hasRetryableErrorCode) {
+    return true;
+  }
+
+  const isNetworkError = error instanceof MongoNetworkError;
+  if (isNetworkError) {
+    return true;
+  }
+
+  const legacyNotWritablePrimaryRegExp = new RegExp(LEGACY_NOT_WRITABLE_PRIMARY_ERROR_MESSAGE);
+  const isNotWritablePrimaryError = legacyNotWritablePrimaryRegExp.test(error.message);
+  if (isNotWritablePrimaryError) {
+    return true;
+  }
+
+  const nodeIsRecoveringRegExp = new RegExp(NODE_IS_RECOVERING_ERROR_MESSAGE);
+  const isNodeIsRecoveringError = nodeIsRecoveringRegExp.test(error.message);
+  if (isNodeIsRecoveringError) {
+    return true;
+  }
+
+  return false;
 }
 
 const SDAM_RECOVERING_CODES = new Set<number>([
@@ -750,7 +804,7 @@ const SDAM_RECOVERING_CODES = new Set<number>([
   MONGODB_ERROR_CODES.NotPrimaryOrSecondary
 ]);
 
-const SDAM_NOTPRIMARY_CODES = new Set<number>([
+const SDAM_NOT_PRIMARY_CODES = new Set<number>([
   MONGODB_ERROR_CODES.NotWritablePrimary,
   MONGODB_ERROR_CODES.NotPrimaryNoSecondaryOk,
   MONGODB_ERROR_CODES.LegacyNotPrimary
@@ -776,7 +830,7 @@ function isRecoveringError(err: MongoError) {
 function isNotWritablePrimaryError(err: MongoError) {
   if (typeof err.code === 'number') {
     // If any error code exists, we ignore the error.message
-    return SDAM_NOTPRIMARY_CODES.has(err.code);
+    return SDAM_NOT_PRIMARY_CODES.has(err.code);
   }
 
   if (isRecoveringError(err)) {
@@ -828,12 +882,15 @@ export function isResumableError(error?: MongoError, wireVersion?: number): bool
     return true;
   }
 
-  if (wireVersion != null && wireVersion >= 9) {
+  if (wireVersion != null && wireVersion >= MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
     // DRIVERS-1308: For 4.4 drivers running against 4.4 servers, drivers will add a special case to treat the CursorNotFound error code as resumable
-    if (error && error instanceof MongoError && error.code === 43) {
+    if (error && error instanceof MongoError && error.code === MONGODB_ERROR_CODES.CursorNotFound) {
       return true;
     }
-    return error instanceof MongoError && error.hasErrorLabel('ResumableChangeStreamError');
+    return (
+      error instanceof MongoError &&
+      error.hasErrorLabel(MONGODB_ERROR_LABELS.ResumableChangeStreamError)
+    );
   }
 
   if (error && typeof error.code === 'number') {

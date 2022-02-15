@@ -11,6 +11,7 @@ import {
   ConnectionPoolEvents,
   ConnectionPoolOptions
 } from '../cmap/connection_pool';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import {
   APM_EVENTS,
   CLOSED,
@@ -30,6 +31,7 @@ import {
   isRetryableWriteError,
   isSDAMUnrecoverableError,
   MongoCompatibilityError,
+  MONGODB_ERROR_LABELS,
   MongoError,
   MongoInvalidArgumentError,
   MongoNetworkError,
@@ -556,8 +558,11 @@ function makeOperationHandler(
         }
 
         // inActiveTransaction check handles commit and abort.
-        if (inActiveTransaction(session, cmd) && !err.hasErrorLabel('TransientTransactionError')) {
-          err.addErrorLabel('TransientTransactionError');
+        if (
+          inActiveTransaction(session, cmd) &&
+          !err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)
+        ) {
+          err.addErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError);
         }
 
         if (
@@ -565,7 +570,7 @@ function makeOperationHandler(
           supportsRetryableWrites(server) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel('RetryableWriteError');
+          err.addErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
         }
 
         if (!(err instanceof MongoNetworkTimeoutError) || isNetworkErrorBeforeHandshake(err)) {
@@ -581,16 +586,19 @@ function makeOperationHandler(
         // if pre-4.4 server, then add error label if its a retryable write error
         if (
           (isRetryableWritesEnabled(server.s.topology) || isTransactionCommand(cmd)) &&
-          maxWireVersion(server) < 9 &&
-          isRetryableWriteError(err) &&
+          maxWireVersion(server) < MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC &&
+          isRetryableWriteError(err, maxWireVersion(server)) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel('RetryableWriteError');
+          err.addErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
         }
 
         if (isSDAMUnrecoverableError(err)) {
           if (shouldHandleStateChangeError(server, err)) {
-            if (maxWireVersion(server) <= 7 || isNodeShuttingDownError(err)) {
+            if (
+              maxWireVersion(server) <= MONGODB_WIRE_VERSION.REPLICA_SET_TRANSACTIONS ||
+              isNodeShuttingDownError(err)
+            ) {
               server.s.pool.clear(connection.serviceId);
             }
 
@@ -602,7 +610,11 @@ function makeOperationHandler(
         }
       }
 
-      if (session && session.isPinned && err.hasErrorLabel('TransientTransactionError')) {
+      if (
+        session &&
+        session.isPinned &&
+        err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)
+      ) {
         session.unpin({ force: true });
       }
     }

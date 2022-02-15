@@ -875,25 +875,23 @@ function convertCollectionOptions(options) {
   return result;
 }
 
-function testOperations(testData, operationContext, options) {
+async function testOperations(testData, operationContext, options) {
   options = options || { swallowOperationErrors: true };
-  return testData.operations.reduce((combined, operation) => {
-    return combined.then(() => {
-      const object = operation.object || 'collection';
-      if (object === 'collection') {
-        const db = operationContext.database;
-        const collectionName = operationContext.collectionName;
-        const collectionOptions = operation.collectionOptions || {};
 
-        operationContext[object] = db.collection(
-          collectionName,
-          convertCollectionOptions(collectionOptions)
-        );
-      }
+  for (const operation of testData.operations) {
+    const object = operation.object || 'collection';
+    if (object === 'collection') {
+      const db = operationContext.database;
+      const collectionName = operationContext.collectionName;
+      const collectionOptions = operation.collectionOptions || {};
 
-      return testOperation(operation, operationContext[object], operationContext, options);
-    });
-  }, Promise.resolve());
+      operationContext[object] = db.collection(
+        collectionName,
+        convertCollectionOptions(collectionOptions)
+      );
+    }
+    await testOperation(operation, operationContext[object], operationContext, options);
+  }
 }
 
 module.exports = {

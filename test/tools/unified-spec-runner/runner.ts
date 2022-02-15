@@ -69,7 +69,7 @@ export async function runUnifiedTest(
     utilClient = ctx.configuration.newClient();
   }
 
-  let entities;
+  let entities: EntitiesMap;
   try {
     trace('\n starting test:');
     try {

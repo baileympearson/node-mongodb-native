@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import type { MongoServerError } from '../error';
 import type { Server } from '../sdam/server';
@@ -29,7 +30,7 @@ export class EstimatedDocumentCountOperation extends CommandOperation<number> {
   }
 
   execute(server: Server, session: ClientSession, callback: Callback<number>): void {
-    if (maxWireVersion(server) < 12) {
+    if (maxWireVersion(server) < MONGODB_WIRE_VERSION.WIRE_VERSION_49) {
       return this.executeLegacy(server, session, callback);
     }
     const pipeline = [{ $collStats: { count: {} } }, { $group: { _id: 1, n: { $sum: '$count' } } }];

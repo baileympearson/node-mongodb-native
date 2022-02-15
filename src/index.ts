@@ -43,6 +43,7 @@ export {
   MongoCompatibilityError,
   MongoCursorExhaustedError,
   MongoCursorInUseError,
+  MONGODB_ERROR_LABELS,
   MongoDecompressionError,
   MongoDriverError,
   MongoError,
@@ -65,6 +66,7 @@ export {
   MongoTailableCursorError,
   MongoTopologyClosedError,
   MongoTransactionError,
+  MongoUnexpectedServerResponseError,
   MongoWriteConcernError
 } from './error';
 export {

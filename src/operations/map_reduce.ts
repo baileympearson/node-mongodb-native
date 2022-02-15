@@ -1,5 +1,6 @@
 import type { ObjectId } from '../bson';
 import { Code, Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { Db } from '../db';
 import { MongoCompatibilityError, MongoServerError } from '../error';
@@ -165,7 +166,7 @@ export class MapReduceOperation extends CommandOperation<Document | Document[]> 
       return callback(err);
     }
 
-    if (this.explain && maxWireVersion(server) < 9) {
+    if (this.explain && maxWireVersion(server) < MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
       callback(
         new MongoCompatibilityError(`Server ${server.name} does not support explain on mapReduce`)
       );

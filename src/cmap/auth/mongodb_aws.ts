@@ -11,6 +11,7 @@ import {
   MongoRuntimeError
 } from '../../error';
 import { Callback, maxWireVersion, ns } from '../../utils';
+import { MONGODB_WIRE_VERSION } from '../wire_protocol/constants';
 import { AuthContext, AuthProvider } from './auth_provider';
 import { MongoCredentials } from './mongo_credentials';
 import { AuthMechanism } from './providers';
@@ -44,7 +45,7 @@ export class MongoDBAWS extends AuthProvider {
     }
     const { sign } = aws4;
 
-    if (maxWireVersion(connection) < 9) {
+    if (maxWireVersion(connection) < MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
       callback(
         new MongoCompatibilityError(
           'MONGODB-AWS authentication requires MongoDB version 4.4 or later'

@@ -1,4 +1,5 @@
 import type { Document } from './bson';
+import { MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import { MongoInvalidArgumentError } from './error';
 import type { TagSet } from './sdam/server_description';
 import type { ClientSession } from './sessions';
@@ -109,7 +110,7 @@ export class ReadPreference {
 
       // NOTE: The minimum required wire version is 5 for this read preference. If the existing
       //       topology has a lower value then a MongoError will be thrown during server selection.
-      this.minWireVersion = 5;
+      this.minWireVersion = MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN;
     }
 
     if (this.mode === ReadPreference.PRIMARY) {

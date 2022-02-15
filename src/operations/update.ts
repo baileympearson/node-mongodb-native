@@ -1,4 +1,5 @@
 import type { Document, ObjectId } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { MongoCompatibilityError, MongoInvalidArgumentError, MongoServerError } from '../error';
 import type { Server } from '../sdam/server';
@@ -113,21 +114,27 @@ export class UpdateOperation extends CommandOperation<Document> {
     }
 
     const unacknowledgedWrite = this.writeConcern && this.writeConcern.w === 0;
-    if (unacknowledgedWrite || maxWireVersion(server) < 5) {
+    if (
+      unacknowledgedWrite ||
+      maxWireVersion(server) < MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN
+    ) {
       if (this.statements.find((o: Document) => o.hint)) {
         callback(new MongoCompatibilityError(`Servers < 3.4 do not support hint on update`));
         return;
       }
     }
 
-    if (this.explain && maxWireVersion(server) < 3) {
+    if (this.explain && maxWireVersion(server) < MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
       callback(
         new MongoCompatibilityError(`Server ${server.name} does not support explain on update`)
       );
       return;
     }
 
-    if (this.statements.some(statement => !!statement.arrayFilters) && maxWireVersion(server) < 6) {
+    if (
+      this.statements.some(statement => !!statement.arrayFilters) &&
+      maxWireVersion(server) < MONGODB_WIRE_VERSION.SUPPORTS_OP_MSG
+    ) {
       callback(
         new MongoCompatibilityError('Option "arrayFilters" is only supported on MongoDB 3.6+')
       );

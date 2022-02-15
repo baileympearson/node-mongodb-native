@@ -6,12 +6,14 @@ const { ObjectId } = require('../../../src/bson');
 const { ReadPreference } = require('../../../src/read_preference');
 const {
   sameServerSelector,
-  secondaryWritableServerSelector,
-  MIN_SECONDARY_WRITE_WIRE_VERSION
+  secondaryWritableServerSelector
 } = require('../../../src/sdam/server_selection');
 const { ServerDescription } = require('../../../src/sdam/server_description');
 const { TopologyDescription } = require('../../../src/sdam/topology_description');
 const { TopologyType } = require('../../../src/sdam/common');
+const { MONGODB_WIRE_VERSION } = require('../../../src/cmap/wire_protocol/constants');
+
+const MIN_SECONDARY_WRITE_WIRE_VERSION = MONGODB_WIRE_VERSION.WIRE_VERSION_50;
 
 describe('server selection', function () {
   const primary = new ServerDescription('127.0.0.1:27017', {

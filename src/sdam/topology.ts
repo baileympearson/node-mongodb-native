@@ -4,6 +4,7 @@ import { deserialize, serialize } from '../bson';
 import type { MongoCredentials } from '../cmap/auth/mongo_credentials';
 import type { ConnectionEvents, DestroyOptions } from '../cmap/connection';
 import type { CloseOptions, ConnectionPoolEvents } from '../cmap/connection_pool';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { DEFAULT_OPTIONS } from '../connection_string';
 import {
   CLOSE,
@@ -50,7 +51,6 @@ import {
 } from '../utils';
 import {
   _advanceClusterTime,
-  clearAndRemoveTimerFrom,
   ClusterTime,
   drainTimerQueue,
   ServerType,
@@ -435,7 +435,12 @@ export class Topology extends TypedEventEmitter<TopologyEvents> {
 
     // connect all known servers, then attempt server selection to connect
     const serverDescriptions = Array.from(this.s.description.servers.values());
-    connectServers(this, serverDescriptions);
+    this.s.servers = new Map(
+      serverDescriptions.map(serverDescription => [
+        serverDescription.address,
+        createAndConnectServer(this, serverDescription)
+      ])
+    );
 
     // In load balancer mode we need to fake a server description getting
     // emitted from the monitor, since the monitor doesn't exist.
@@ -877,11 +882,7 @@ function randomSelection(array: ServerDescription[]): ServerDescription {
  * @param serverDescription - The description for the server to initialize and connect to
  * @param connectDelay - Time to wait before attempting initial connection
  */
-function createAndConnectServer(
-  topology: Topology,
-  serverDescription: ServerDescription,
-  connectDelay?: number
-) {
+function createAndConnectServer(topology: Topology, serverDescription: ServerDescription) {
   topology.emit(
     Topology.SERVER_OPENING,
     new ServerOpeningEvent(topology.s.id, serverDescription.address)
@@ -894,36 +895,8 @@ function createAndConnectServer(
 
   server.on(Server.DESCRIPTION_RECEIVED, description => topology.serverUpdateHandler(description));
 
-  if (connectDelay) {
-    const connectTimer = setTimeout(() => {
-      clearAndRemoveTimerFrom(connectTimer, topology.s.connectionTimers);
-      server.connect();
-    }, connectDelay);
-
-    topology.s.connectionTimers.add(connectTimer);
-    return server;
-  }
-
   server.connect();
   return server;
-}
-
-/**
- * Create `Server` instances for all initially known servers, connect them, and assign
- * them to the passed in `Topology`.
- *
- * @param topology - The topology responsible for the servers
- * @param serverDescriptions - A list of server descriptions to connect
- */
-function connectServers(topology: Topology, serverDescriptions: ServerDescription[]) {
-  topology.s.servers = serverDescriptions.reduce(
-    (servers: Map<string, Server>, serverDescription: ServerDescription) => {
-      const server = createAndConnectServer(topology, serverDescription);
-      servers.set(serverDescription.address, server);
-      return servers;
-    },
-    new Map<string, Server>()
-  );
 }
 
 /**
@@ -1067,42 +1040,44 @@ export class ServerCapabilities {
   minWireVersion: number;
 
   constructor(hello: Document) {
-    this.minWireVersion = hello.minWireVersion || 0;
-    this.maxWireVersion = hello.maxWireVersion || 0;
+    this.minWireVersion = hello.minWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
+    this.maxWireVersion = hello.maxWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
   }
 
   get hasAggregationCursor(): boolean {
-    return this.maxWireVersion >= 1;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.AGG_RETURNS_CURSORS;
   }
 
   get hasWriteCommands(): boolean {
-    return this.maxWireVersion >= 2;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.BATCH_COMMANDS;
   }
+
   get hasTextSearch(): boolean {
-    return this.minWireVersion >= 0;
+    // TODO: Is this correct?
+    return this.minWireVersion >= MONGODB_WIRE_VERSION.UNKNOWN;
   }
 
   get hasAuthCommands(): boolean {
-    return this.maxWireVersion >= 1;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.AGG_RETURNS_CURSORS;
   }
 
   get hasListCollectionsCommand(): boolean {
-    return this.maxWireVersion >= 3;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.RELEASE_2_7_7;
   }
 
   get hasListIndexesCommand(): boolean {
-    return this.maxWireVersion >= 3;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.RELEASE_2_7_7;
   }
 
   get supportsSnapshotReads(): boolean {
-    return this.maxWireVersion >= 13;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.WIRE_VERSION_50;
   }
 
   get commandsTakeWriteConcern(): boolean {
-    return this.maxWireVersion >= 5;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN;
   }
 
   get commandsTakeCollation(): boolean {
-    return this.maxWireVersion >= 5;
+    return this.maxWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN;
   }
 }

@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { MongoCompatibilityError, MongoServerError } from '../error';
 import type { Server } from '../sdam/server';
@@ -80,7 +81,7 @@ export class DeleteOperation extends CommandOperation<Document> {
       command.let = options.let;
     }
 
-    if (options.explain != null && maxWireVersion(server) < 3) {
+    if (options.explain != null && maxWireVersion(server) < MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
       return callback
         ? callback(
             new MongoCompatibilityError(`Server ${server.name} does not support explain on delete`)
@@ -89,7 +90,10 @@ export class DeleteOperation extends CommandOperation<Document> {
     }
 
     const unacknowledgedWrite = this.writeConcern && this.writeConcern.w === 0;
-    if (unacknowledgedWrite || maxWireVersion(server) < 5) {
+    if (
+      unacknowledgedWrite ||
+      maxWireVersion(server) < MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN
+    ) {
       if (this.statements.find((o: Document) => o.hint)) {
         callback(new MongoCompatibilityError(`Servers < 3.4 do not support hint on delete`));
         return;

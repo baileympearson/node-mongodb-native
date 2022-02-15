@@ -1,4 +1,5 @@
 import type { Binary, Document } from '../bson';
+import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import * as CONSTANTS from '../constants';
 import { AbstractCursor } from '../cursor/abstract_cursor';
 import type { Db } from '../db';
@@ -8,8 +9,6 @@ import { Callback, getTopology, maxWireVersion, MongoDBNamespace } from '../util
 import { CommandOperation, CommandOperationOptions } from './command';
 import { executeOperation, ExecutionResult } from './execute_operation';
 import { Aspect, defineAspects } from './operation';
-
-const LIST_COLLECTIONS_WIRE_VERSION = 3;
 
 /** @public */
 export interface ListCollectionsOptions extends CommandOperationOptions {
@@ -45,7 +44,7 @@ export class ListCollectionsOperation extends CommandOperation<string[]> {
   }
 
   execute(server: Server, session: ClientSession, callback: Callback<string[]>): void {
-    if (maxWireVersion(server) < LIST_COLLECTIONS_WIRE_VERSION) {
+    if (maxWireVersion(server) < MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
       let filter = this.filter;
       const databaseName = this.db.s.namespace.db;
 
