@@ -1,7 +1,6 @@
 import { Binary, Document, Long, Timestamp } from './bson';
 import type { CommandOptions, Connection } from './cmap/connection';
 import { ConnectionPoolMetrics } from './cmap/metrics';
-import { MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import { isSharded } from './cmap/wire_protocol/shared';
 import { PINNED, UNPINNED } from './constants';
 import type { AbstractCursor } from './cursor/abstract_cursor';
@@ -43,6 +42,8 @@ import {
   uuidV4
 } from './utils';
 import type { WriteConcern } from './write_concern';
+
+const minWireVersionForShardedTransactions = 8;
 
 function assertAlive(session: ClientSession, callback?: Callback): boolean {
   if (session.serverSession == null) {
@@ -391,7 +392,7 @@ export class ClientSession extends TypedEventEmitter<ClientSessionEvents> {
     if (
       isSharded(this.topology) &&
       topologyMaxWireVersion != null &&
-      topologyMaxWireVersion < MONGODB_WIRE_VERSION.SHARDED_TRANSACTIONS
+      topologyMaxWireVersion < minWireVersionForShardedTransactions
     ) {
       throw new MongoCompatibilityError(
         'Transactions are not supported on sharded clusters in MongoDB < 4.2.'

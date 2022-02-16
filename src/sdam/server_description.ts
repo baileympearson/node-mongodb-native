@@ -1,5 +1,4 @@
 import { Document, Long, ObjectId } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { MongoError } from '../error';
 import { arrayStrictEqual, errorStrictEqual, HostAddress, now } from '../utils';
 import type { ClusterTime } from './common';
@@ -97,8 +96,8 @@ export class ServerDescription {
     this.passives = hello?.passives?.map((host: string) => host.toLowerCase()) ?? [];
     this.arbiters = hello?.arbiters?.map((host: string) => host.toLowerCase()) ?? [];
     this.tags = hello?.tags ?? {};
-    this.minWireVersion = hello?.minWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
-    this.maxWireVersion = hello?.maxWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
+    this.minWireVersion = hello?.minWireVersion ?? 0;
+    this.maxWireVersion = hello?.maxWireVersion ?? 0;
     this.roundTripTime = options?.roundTripTime ?? -1;
     this.lastUpdateTime = now();
     this.lastWriteDate = hello?.lastWrite?.lastWriteDate ?? 0;

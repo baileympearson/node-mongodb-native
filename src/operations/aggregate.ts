@@ -1,5 +1,4 @@
 import type { Document } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { MongoInvalidArgumentError } from '../error';
 import type { Server } from '../sdam/server';
 import type { ClientSession } from '../sessions';
@@ -10,6 +9,7 @@ import { Aspect, defineAspects, Hint } from './operation';
 
 /** @internal */
 export const DB_AGGREGATE_COLLECTION = 1 as const;
+const MIN_WIRE_VERSION_$OUT_READ_CONCERN_SUPPORT = 8 as const;
 
 /** @public */
 export interface AggregateOptions extends CommandOperationOptions {
@@ -91,11 +91,11 @@ export class AggregateOperation<T = Document> extends CommandOperation<T> {
     const serverWireVersion = maxWireVersion(server);
     const command: Document = { aggregate: this.target, pipeline: this.pipeline };
 
-    if (this.hasWriteStage && serverWireVersion < MONGODB_WIRE_VERSION.SHARDED_TRANSACTIONS) {
+    if (this.hasWriteStage && serverWireVersion < MIN_WIRE_VERSION_$OUT_READ_CONCERN_SUPPORT) {
       this.readConcern = undefined;
     }
 
-    if (serverWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN) {
+    if (serverWireVersion >= 5) {
       if (this.hasWriteStage && this.writeConcern) {
         Object.assign(command, { writeConcern: this.writeConcern });
       }

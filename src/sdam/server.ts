@@ -11,7 +11,6 @@ import {
   ConnectionPoolEvents,
   ConnectionPoolOptions
 } from '../cmap/connection_pool';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import {
   APM_EVENTS,
   CLOSED,
@@ -586,7 +585,7 @@ function makeOperationHandler(
         // if pre-4.4 server, then add error label if its a retryable write error
         if (
           (isRetryableWritesEnabled(server.s.topology) || isTransactionCommand(cmd)) &&
-          maxWireVersion(server) < MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC &&
+          maxWireVersion(server) < 9 &&
           isRetryableWriteError(err, maxWireVersion(server)) &&
           !inActiveTransaction(session, cmd)
         ) {
@@ -595,10 +594,7 @@ function makeOperationHandler(
 
         if (isSDAMUnrecoverableError(err)) {
           if (shouldHandleStateChangeError(server, err)) {
-            if (
-              maxWireVersion(server) <= MONGODB_WIRE_VERSION.REPLICA_SET_TRANSACTIONS ||
-              isNodeShuttingDownError(err)
-            ) {
+            if (maxWireVersion(server) <= 7 || isNodeShuttingDownError(err)) {
               server.s.pool.clear(connection.serviceId);
             }
 

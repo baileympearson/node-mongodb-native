@@ -53,7 +53,6 @@ import {
 import type { Stream } from './connect';
 import { MessageStream, OperationDescription } from './message_stream';
 import { StreamDescription, StreamDescriptionOptions } from './stream_description';
-import { MONGODB_WIRE_VERSION } from './wire_protocol/constants';
 import { applyCommonQueryOptions, getReadPreference, isSharded } from './wire_protocol/shared';
 
 /** @internal */
@@ -251,35 +250,9 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
       /* ignore errors, listen to `close` instead */
     });
 
-    const eventHandlerFactory = (event: 'error' | 'close' | 'timeout') =>
-      [
-        event,
-        (error?: Error) => {
-          if (this.closed) {
-            return;
-          }
-          this.closed = true;
-
-          switch (event) {
-            case 'error':
-              this.onError(error);
-              break;
-            case 'close':
-              this.onClose();
-              break;
-            case 'timeout':
-              this.onTimeout();
-              break;
-          }
-
-          this[kQueue].clear();
-          this.emit(Connection.CLOSE);
-        }
-      ] as const;
-
-    this[kMessageStream].on(...eventHandlerFactory('error'));
-    stream.on(...eventHandlerFactory('close'));
-    stream.on(...eventHandlerFactory('timeout'));
+    this[kMessageStream].on('error', error => this.handleIssue({ destroy: error }));
+    stream.on('close', () => this.handleIssue({ isClose: true }));
+    stream.on('timeout', () => this.handleIssue({ isTimeout: true, destroy: true }));
 
     // hook the message stream up to the passed in stream
     stream.pipe(this[kMessageStream]);
@@ -335,29 +308,33 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
     this[kLastUseTime] = now();
   }
 
-  onTimeout() {
-    this[kStream].destroy();
-    const beforeHandshake = {
-      beforeHandshake: this.hello == null
-    };
-    const msg = `connection ${this.id} to ${this.address} timed out`;
+  handleIssue(issue: { isTimeout?: boolean; isClose?: boolean; destroy?: boolean | Error }): void {
+    if (this.closed) {
+      return;
+    }
+
+    if (issue.destroy) {
+      this[kStream].destroy(typeof issue.destroy === 'boolean' ? undefined : issue.destroy);
+    }
+
+    this.closed = true;
 
     for (const [, op] of this[kQueue]) {
-      op.cb(new MongoNetworkTimeoutError(msg, beforeHandshake));
+      if (issue.isTimeout) {
+        op.cb(
+          new MongoNetworkTimeoutError(`connection ${this.id} to ${this.address} timed out`, {
+            beforeHandshake: this.hello == null
+          })
+        );
+      } else if (issue.isClose) {
+        op.cb(new MongoNetworkError(`connection ${this.id} to ${this.address} closed`));
+      } else {
+        op.cb(typeof issue.destroy === 'boolean' ? undefined : issue.destroy);
+      }
     }
-  }
 
-  onClose() {
-    for (const [, op] of this[kQueue]) {
-      op.cb(new MongoNetworkError(`connection ${this.id} to ${this.address} closed`));
-    }
-  }
-
-  onError(error?: Error) {
-    this[kStream].destroy(error);
-    for (const [, op] of this[kQueue]) {
-      op.cb(error);
-    }
+    this[kQueue].clear();
+    this.emit(Connection.CLOSE);
   }
 
   destroy(): void;
@@ -566,7 +543,7 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
       return;
     }
 
-    if (wireVersion < MONGODB_WIRE_VERSION.FIND_COMMAND) {
+    if (wireVersion < 4) {
       const getMoreOp = new GetMore(ns.toString(), cursorId, { numberToReturn: options.batchSize });
       const queryOptions = applyCommonQueryOptions(
         {},
@@ -620,7 +597,7 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
       throw new MongoRuntimeError(`Invalid list of cursor ids provided: ${cursorIds}`);
     }
 
-    if (maxWireVersion(this) < MONGODB_WIRE_VERSION.FIND_COMMAND) {
+    if (maxWireVersion(this) < 4) {
       try {
         write(
           this,
@@ -678,12 +655,12 @@ export class CryptoConnection extends Connection {
     }
 
     const serverWireVersion = maxWireVersion(this);
-    if (serverWireVersion === MONGODB_WIRE_VERSION.UNKNOWN) {
+    if (serverWireVersion === 0) {
       // This means the initial handshake hasn't happened yet
       return super.command(ns, cmd, options, callback);
     }
 
-    if (serverWireVersion < MONGODB_WIRE_VERSION.SHARDED_TRANSACTIONS) {
+    if (serverWireVersion < 8) {
       callback(
         new MongoCompatibilityError('Auto-encryption requires a minimum MongoDB version of 4.2')
       );
@@ -720,10 +697,7 @@ function supportsOpMsg(conn: Connection) {
     return false;
   }
 
-  return (
-    maxWireVersion(conn) >= MONGODB_WIRE_VERSION.SUPPORTS_OP_MSG &&
-    !description.__nodejs_mock_server__ // mock server does not support OP_MSG
-  );
+  return maxWireVersion(conn) >= 6 && !description.__nodejs_mock_server__;
 }
 
 function messageHandler(conn: Connection) {

@@ -1,16 +1,16 @@
 import type { Document, ObjectId } from '../bson';
-import {
-  MAX_SUPPORTED_SERVER_VERSION,
-  MAX_SUPPORTED_WIRE_VERSION,
-  MIN_SUPPORTED_SERVER_VERSION,
-  MIN_SUPPORTED_WIRE_VERSION,
-  MONGODB_WIRE_VERSION
-} from '../cmap/wire_protocol/constants';
+import * as WIRE_CONSTANTS from '../cmap/wire_protocol/constants';
 import { MongoError, MongoRuntimeError } from '../error';
 import { shuffle } from '../utils';
 import { ServerType, TopologyType } from './common';
 import { ServerDescription } from './server_description';
 import type { SrvPollingEvent } from './srv_polling';
+
+// constants related to compatibility checks
+const MIN_SUPPORTED_SERVER_VERSION = WIRE_CONSTANTS.MIN_SUPPORTED_SERVER_VERSION;
+const MAX_SUPPORTED_SERVER_VERSION = WIRE_CONSTANTS.MAX_SUPPORTED_SERVER_VERSION;
+const MIN_SUPPORTED_WIRE_VERSION = WIRE_CONSTANTS.MIN_SUPPORTED_WIRE_VERSION;
+const MAX_SUPPORTED_WIRE_VERSION = WIRE_CONSTANTS.MAX_SUPPORTED_WIRE_VERSION;
 
 const MONGOS_OR_UNKNOWN = new Set<ServerType>([ServerType.Mongos, ServerType.Unknown]);
 const MONGOS_OR_STANDALONE = new Set<ServerType>([ServerType.Mongos, ServerType.Standalone]);
@@ -211,7 +211,7 @@ export class TopologyDescription {
     const serverDescriptions = new Map(this.servers);
 
     // update common wire version
-    if (serverDescription.maxWireVersion !== MONGODB_WIRE_VERSION.UNKNOWN) {
+    if (serverDescription.maxWireVersion !== 0) {
       if (commonWireVersion == null) {
         commonWireVersion = serverDescription.maxWireVersion;
       } else {

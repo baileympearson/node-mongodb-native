@@ -1,7 +1,6 @@
 import * as crypto from 'crypto';
 
 import type { Document } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Db } from '../db';
 import { MongoInvalidArgumentError } from '../error';
 import type { Server } from '../sdam/server';
@@ -76,8 +75,7 @@ export class AddUserOperation extends CommandOperation<Document> {
       roles = Array.isArray(options.roles) ? options.roles : [options.roles];
     }
 
-    const digestPassword =
-      getTopology(db).lastHello().maxWireVersion >= MONGODB_WIRE_VERSION.REPLICA_SET_TRANSACTIONS;
+    const digestPassword = getTopology(db).lastHello().maxWireVersion >= 7;
 
     let userPassword = password;
 

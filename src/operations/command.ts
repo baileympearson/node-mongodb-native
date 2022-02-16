@@ -1,11 +1,11 @@
 import type { BSONSerializeOptions, Document } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { MongoCompatibilityError, MongoInvalidArgumentError } from '../error';
 import { Explain, ExplainOptions } from '../explain';
 import type { Logger } from '../logger';
 import { ReadConcern } from '../read_concern';
 import type { ReadPreference } from '../read_preference';
 import type { Server } from '../sdam/server';
+import { MIN_SECONDARY_WRITE_WIRE_VERSION } from '../sdam/server_selection';
 import type { ClientSession } from '../sessions';
 import {
   Callback,
@@ -17,6 +17,8 @@ import {
 import { WriteConcern, WriteConcernOptions } from '../write_concern';
 import type { ReadConcernLike } from './../read_concern';
 import { AbstractOperation, Aspect, OperationOptions } from './operation';
+
+const SUPPORTS_WRITE_CONCERN_AND_COLLATION = 5;
 
 /** @public */
 export interface CollationOptions {
@@ -131,14 +133,11 @@ export abstract class CommandOperation<T> extends AbstractOperation<T> {
       Object.assign(cmd, { readConcern: this.readConcern });
     }
 
-    if (this.trySecondaryWrite && serverWireVersion < MONGODB_WIRE_VERSION.WIRE_VERSION_50) {
+    if (this.trySecondaryWrite && serverWireVersion < MIN_SECONDARY_WRITE_WIRE_VERSION) {
       options.omitReadPreference = true;
     }
 
-    if (
-      options.collation &&
-      serverWireVersion < MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN
-    ) {
+    if (options.collation && serverWireVersion < SUPPORTS_WRITE_CONCERN_AND_COLLATION) {
       callback(
         new MongoCompatibilityError(
           `Server ${server.name}, which reports wire version ${serverWireVersion}, does not support collation`
@@ -151,7 +150,7 @@ export abstract class CommandOperation<T> extends AbstractOperation<T> {
       Object.assign(cmd, { writeConcern: this.writeConcern });
     }
 
-    if (serverWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN) {
+    if (serverWireVersion >= SUPPORTS_WRITE_CONCERN_AND_COLLATION) {
       if (
         options.collation &&
         typeof options.collation === 'object' &&
@@ -170,7 +169,7 @@ export abstract class CommandOperation<T> extends AbstractOperation<T> {
     }
 
     if (this.hasAspect(Aspect.EXPLAINABLE) && this.explain) {
-      if (serverWireVersion < MONGODB_WIRE_VERSION.SUPPORTS_OP_MSG && cmd.aggregate) {
+      if (serverWireVersion < 6 && cmd.aggregate) {
         // Prior to 3.6, with aggregate, verbosity is ignored, and we must pass in "explain: true"
         cmd.explain = true;
       } else {

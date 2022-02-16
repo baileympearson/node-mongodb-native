@@ -3,9 +3,6 @@ import type { ConnectionPool } from './connection_pool';
 
 /**
  * An error indicating a connection pool is closed
- *
- * @public
- *
  * @category Error
  */
 export class PoolClosedError extends MongoDriverError {

@@ -1,5 +1,4 @@
 import type { Document } from './bson';
-import { MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import type { TopologyVersion } from './sdam/server_description';
 import type { TopologyDescription } from './sdam/topology_description';
 
@@ -101,8 +100,6 @@ export interface ErrorDescription extends Document {
   errInfo?: Document;
 }
 
-const kCreated = Symbol('created');
-
 /**
  * @public
  * @category Error
@@ -113,7 +110,6 @@ const kCreated = Symbol('created');
 export class MongoError extends Error {
   /** @internal */
   [kErrorLabels]: Set<string>;
-  [kCreated]: Date;
   /**
    * This is a number in MongoServerError and a string in MongoDriverError
    * @privateRemarks
@@ -128,7 +124,6 @@ export class MongoError extends Error {
     } else {
       super(message);
     }
-    this[kCreated] = new Date();
   }
 
   get name(): string {
@@ -758,7 +753,7 @@ export function isRetryableWriteError(error: MongoError, maxWireVersion: number)
     return false;
   }
 
-  if (maxWireVersion >= MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
+  if (maxWireVersion >= 9) {
     // After 4.4 the error label is the only source of truth for retry writes
     return error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
   } else if (error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError)) {
@@ -886,7 +881,7 @@ export function isResumableError(error?: MongoError, wireVersion?: number): bool
     return true;
   }
 
-  if (wireVersion != null && wireVersion >= MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
+  if (wireVersion != null && wireVersion >= 9) {
     // DRIVERS-1308: For 4.4 drivers running against 4.4 servers, drivers will add a special case to treat the CursorNotFound error code as resumable
     if (error && error instanceof MongoError && error.code === MONGODB_ERROR_CODES.CursorNotFound) {
       return true;

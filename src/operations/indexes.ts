@@ -1,5 +1,4 @@
 import type { Document } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import type { Collection } from '../collection';
 import { AbstractCursor } from '../cursor/abstract_cursor';
 import type { Db } from '../db';
@@ -25,6 +24,7 @@ import { indexInformation, IndexInformationOptions } from './common_functions';
 import { executeOperation, ExecutionResult } from './execute_operation';
 import { AbstractOperation, Aspect, defineAspects } from './operation';
 
+const LIST_INDEXES_WIRE_VERSION = 3;
 const VALID_INDEX_OPTIONS = new Set([
   'background',
   'unique',
@@ -213,7 +213,7 @@ export class CreateIndexesOperation<
     // Ensure we generate the correct name if the parameter is not set
     for (let i = 0; i < indexes.length; i++) {
       // Did the user pass in a collation, check if our write server supports it
-      if (indexes[i].collation && serverWireVersion < MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
+      if (indexes[i].collation && serverWireVersion < 5) {
         callback(
           new MongoCompatibilityError(
             `Server ${server.name}, which reports wire version ${serverWireVersion}, ` +
@@ -238,7 +238,7 @@ export class CreateIndexesOperation<
     const cmd: Document = { createIndexes: this.collectionName, indexes };
 
     if (options.commitQuorum != null) {
-      if (serverWireVersion < MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
+      if (serverWireVersion < 9) {
         callback(
           new MongoCompatibilityError(
             'Option `commitQuorum` for `createIndexes` not supported on servers < 4.4'
@@ -385,7 +385,7 @@ export class ListIndexesOperation extends CommandOperation<Document> {
 
   execute(server: Server, session: ClientSession, callback: Callback<Document>): void {
     const serverWireVersion = maxWireVersion(server);
-    if (serverWireVersion < MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
+    if (serverWireVersion < LIST_INDEXES_WIRE_VERSION) {
       const systemIndexesNS = this.collectionNamespace.withCollection('system.indexes');
       const collectionNS = this.collectionNamespace.toString();
 

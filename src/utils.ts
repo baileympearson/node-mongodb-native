@@ -5,7 +5,7 @@ import { URL } from 'url';
 
 import { Document, ObjectId, resolveBSONOptions } from './bson';
 import type { Connection } from './cmap/connection';
-import { MAX_SUPPORTED_WIRE_VERSION, MONGODB_WIRE_VERSION } from './cmap/wire_protocol/constants';
+import { MAX_SUPPORTED_WIRE_VERSION } from './cmap/wire_protocol/constants';
 import type { Collection } from './collection';
 import { LEGACY_HELLO_COMMAND } from './constants';
 import type { Db } from './db';
@@ -686,10 +686,8 @@ export function maxWireVersion(topologyOrServer?: Connection | Topology | Server
  * @param server - to check against
  * @param cmd - object where collation may be specified
  */
-export function collationNotSupported(server: Server, cmd?: Document): boolean {
-  return (
-    cmd?.collation && maxWireVersion(server) < MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN
-  );
+export function collationNotSupported(server: Server, cmd: Document): boolean {
+  return cmd && cmd.collation && maxWireVersion(server) < 5;
 }
 
 /**
@@ -1431,7 +1429,7 @@ export function supportsRetryableWrites(server?: Server): boolean {
     return true;
   }
 
-  if (server.description.maxWireVersion >= MONGODB_WIRE_VERSION.SUPPORTS_OP_MSG) {
+  if (server.description.maxWireVersion >= 6) {
     // Talking to a 3.6+ server
     if (server.description.logicalSessionTimeoutMinutes != null) {
       // that supports sessions

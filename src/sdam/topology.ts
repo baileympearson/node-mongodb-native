@@ -4,7 +4,6 @@ import { deserialize, serialize } from '../bson';
 import type { MongoCredentials } from '../cmap/auth/mongo_credentials';
 import type { ConnectionEvents, DestroyOptions } from '../cmap/connection';
 import type { CloseOptions, ConnectionPoolEvents } from '../cmap/connection_pool';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import { DEFAULT_OPTIONS } from '../connection_string';
 import {
   CLOSE,
@@ -1040,44 +1039,42 @@ export class ServerCapabilities {
   minWireVersion: number;
 
   constructor(hello: Document) {
-    this.minWireVersion = hello.minWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
-    this.maxWireVersion = hello.maxWireVersion ?? MONGODB_WIRE_VERSION.UNKNOWN;
+    this.minWireVersion = hello.minWireVersion || 0;
+    this.maxWireVersion = hello.maxWireVersion || 0;
   }
 
   get hasAggregationCursor(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.AGG_RETURNS_CURSORS;
+    return this.maxWireVersion >= 1;
   }
 
   get hasWriteCommands(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.BATCH_COMMANDS;
+    return this.maxWireVersion >= 2;
   }
-
   get hasTextSearch(): boolean {
-    // TODO: Is this correct?
-    return this.minWireVersion >= MONGODB_WIRE_VERSION.UNKNOWN;
+    return this.minWireVersion >= 0;
   }
 
   get hasAuthCommands(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.AGG_RETURNS_CURSORS;
+    return this.maxWireVersion >= 1;
   }
 
   get hasListCollectionsCommand(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.RELEASE_2_7_7;
+    return this.maxWireVersion >= 3;
   }
 
   get hasListIndexesCommand(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.RELEASE_2_7_7;
+    return this.maxWireVersion >= 3;
   }
 
   get supportsSnapshotReads(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.WIRE_VERSION_50;
+    return this.maxWireVersion >= 13;
   }
 
   get commandsTakeWriteConcern(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN;
+    return this.maxWireVersion >= 5;
   }
 
   get commandsTakeCollation(): boolean {
-    return this.maxWireVersion >= MONGODB_WIRE_VERSION.COMMANDS_ACCEPT_WRITE_CONCERN;
+    return this.maxWireVersion >= 5;
   }
 }

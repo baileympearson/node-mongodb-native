@@ -1,5 +1,4 @@
 import type { Document } from '../bson';
-import { MONGODB_WIRE_VERSION } from '../cmap/wire_protocol/constants';
 import {
   isRetryableReadError,
   isRetryableWriteError,
@@ -126,7 +125,7 @@ export function executeOperation<
 }
 
 function supportsRetryableReads(server?: Server) {
-  return maxWireVersion(server) >= MONGODB_WIRE_VERSION.SUPPORTS_OP_MSG;
+  return maxWireVersion(server) >= 6;
 }
 
 function executeWithServerSelection<TResult>(

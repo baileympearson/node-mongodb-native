@@ -17,7 +17,7 @@ function getDefaultAuthMechanism(hello?: Document): AuthMechanism {
     }
 
     // Fallback to legacy selection method. If wire version >= 3, use scram-sha-1
-    if (hello.maxWireVersion >= MONGODB_WIRE_VERSION.RELEASE_2_7_7) {
+    if (hello.maxWireVersion >= 3) {
       return AuthMechanism.MONGODB_SCRAM_SHA1;
     }
   }

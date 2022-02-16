@@ -95,7 +95,11 @@ This class should **never** be directly instantiated.
 
 ### MongoUnexpectedServerResponseError
 
-xxx
+Intended for the scenario where the MongoDB returns an unexpected response in relation to some state the driver is in
+This error should **NOT** represent a response that couldn't be parsed due to errors in protocol formatting.
+
+Ex. Server selection results in a feature detection change, this is not a direct unexpected response, but if we've begun retrying an operation and serverSelection during that retry returns a server with a lower wireVersion than expected, we can no longer proceed with the retry.
+
 
 ### `MongoNetworkError`
 
