@@ -754,6 +754,10 @@ const RETRYABLE_WRITE_ERROR_CODES = new Set<number>([
 ]);
 
 export function isRetryableWriteError(error: MongoError, maxWireVersion: number): boolean {
+  if (!(error instanceof MongoError)) {
+    return false;
+  }
+
   if (maxWireVersion >= MONGODB_WIRE_VERSION.RESUMABLE_INITIAL_SYNC) {
     // After 4.4 the error label is the only source of truth for retry writes
     return error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
