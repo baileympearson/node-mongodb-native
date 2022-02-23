@@ -196,12 +196,6 @@ function executeWithServerSelection<TResult>(
 
     // select a new server, and attempt to retry the operation
     topology.selectServer(selector, serverSelectionOptions, (error?: Error, server?: Server) => {
-      if (!error && operation.hasAspect(Aspect.READ_OPERATION)) {
-        return callback(
-          new MongoUnexpectedServerResponseError('Selected server does not support retryable reads')
-        );
-      }
-
       if (!error && isWriteOperation && !supportsRetryableWrites(server)) {
         return callback(
           new MongoUnexpectedServerResponseError(
@@ -241,11 +235,11 @@ function executeWithServerSelection<TResult>(
     }
 
     if (session && operation.hasAspect(Aspect.RETRYABLE)) {
-      const willRetryRead = topology.s.options.retryReads;
-      !inTransaction && operation.canRetryRead;
+      const willRetryRead =
+        topology.s.options.retryReads && !inTransaction && operation.canRetryRead;
 
-      const willRetryWrite = topology.s.options.retryWrites;
-      !inTransaction && supportsRetryableWrites(server);
+      const willRetryWrite =
+        topology.s.options.retryWrites && !inTransaction && supportsRetryableWrites(server);
 
       const hasReadAspect = operation.hasAspect(Aspect.READ_OPERATION);
       const hasWriteAspect = operation.hasAspect(Aspect.WRITE_OPERATION);

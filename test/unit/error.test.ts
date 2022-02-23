@@ -5,7 +5,6 @@ import {
   WaitQueueTimeoutError as MongoWaitQueueTimeoutError
 } from '../../src/cmap/errors';
 import {
-  isRetryableEndTransactionError,
   isSDAMUnrecoverableError,
   LEGACY_NOT_PRIMARY_OR_SECONDARY_ERROR_MESSAGE,
   LEGACY_NOT_WRITABLE_PRIMARY_ERROR_MESSAGE,
@@ -142,34 +141,6 @@ describe('MongoErrors', () => {
 
         const error = new MongoSystemError('something went wrong', topologyDescription);
         expect(error).to.haveOwnProperty('code', undefined);
-      });
-    });
-  });
-
-  describe('#isRetryableEndTransactionError', function () {
-    context('when the error has a RetryableWriteError label', function () {
-      const error = new MongoNetworkError('');
-      error.addErrorLabel('RetryableWriteError');
-
-      it('returns true', function () {
-        expect(isRetryableEndTransactionError(error)).to.be.true;
-      });
-    });
-
-    context('when the error does not have a RetryableWriteError label', function () {
-      const error = new MongoNetworkError('');
-      error.addErrorLabel('InvalidLabel');
-
-      it('returns false', function () {
-        expect(isRetryableEndTransactionError(error)).to.be.false;
-      });
-    });
-
-    context('when the error does not have any label', function () {
-      const error = new MongoNetworkError('');
-
-      it('returns false', function () {
-        expect(isRetryableEndTransactionError(error)).to.be.false;
       });
     });
   });

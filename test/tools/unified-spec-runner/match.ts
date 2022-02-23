@@ -270,21 +270,6 @@ function validEmptyCmapEvent(
   });
 }
 
-/**
- * Needed when you write an assertion like this, but TS doesn't know
- * to narrow the type.
- * `expect(actualEvent).to.be.instanceOf(CommandFailedEvent);`
- *
- * Could we extend chai to do this?
- */
-function isCommandEvent(ev: any): asserts ev is CommandEvent {
-  console.assert(
-    ev instanceof CommandStartedEvent ||
-      ev instanceof CommandSucceededEvent ||
-      ev instanceof CommandFailedEvent
-  );
-}
-
 export function matchesEvents(
   expected: (ExpectedCommandEvent & ExpectedCmapEvent)[],
   actual: CommandEvent[] | CmapEvent[],
@@ -315,8 +300,9 @@ export function matchesEvents(
       ]);
     } else if (expectedEvent.commandFailedEvent) {
       expect(actualEvent).to.be.instanceOf(CommandFailedEvent);
-      isCommandEvent(actualEvent);
-      expect(actualEvent.commandName).to.equal(expectedEvent.commandFailedEvent.commandName);
+      expect(actualEvent)
+        .to.have.property('commandName')
+        .that.equals(expectedEvent.commandFailedEvent.commandName);
     } else if (expectedEvent.connectionClosedEvent) {
       expect(actualEvent).to.be.instanceOf(ConnectionClosedEvent);
       if (expectedEvent.connectionClosedEvent.hasServiceId) {

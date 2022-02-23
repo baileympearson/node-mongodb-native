@@ -111,19 +111,16 @@ async function executeScenarioSetup(scenario, test, config, ctx) {
   }
 }
 
-async function executeScenarioTest(test, ctx) {
+async function executeScenarioTest(test, ctx: RetryableWriteTestContext) {
   const args = generateArguments(test);
 
   // In case the spec files or our API changes
   expect(ctx.collection).to.have.property(test.operation.name).that.is.a('function');
 
   let thrownError;
-  let result;
-  try {
-    result = await ctx.collection[test.operation.name](...args);
-  } catch (error) {
-    thrownError = error;
-  }
+  const result = await ctx.collection[test.operation.name](...args).catch(
+    error => (thrownError = error)
+  );
 
   const outcome = test.outcome && test.outcome.result;
   const errorLabelsContain = outcome && outcome.errorLabelsContain;
@@ -149,8 +146,11 @@ async function executeScenarioTest(test, ctx) {
   } else if (test.outcome.result) {
     expect(thrownError, thrownError?.stack).to.not.exist;
     const expected = test.outcome.result;
-    result = transformToResultValue(result);
-    expect(result).to.deep.include(expected);
+    // TODO(NODE-XXXX): Make CRUD results spec compliant
+
+    // Transforms output of a bulk write to conform to the test format
+    // bulk has a value property
+    expect(result.value ?? result).to.deep.include(expected);
   }
 
   if (test.outcome.collection) {
@@ -172,7 +172,10 @@ function generateArguments(test) {
     const options: Record<string, any> = {};
     for (const arg of Object.keys(test.operation.arguments)) {
       if (arg === 'requests') {
-        args.push(test.operation.arguments[arg].map(convertBulkWriteOperation));
+        /** Transforms a request arg into a bulk write operation */
+        args.push(
+          test.operation.arguments[arg].map(({ name, arguments: args }) => ({ [name]: args }))
+        );
       } else if (arg === 'upsert') {
         options.upsert = test.operation.arguments[arg];
       } else if (arg === 'returnDocument') {
@@ -188,16 +191,6 @@ function generateArguments(test) {
   }
 
   return args;
-}
-
-/** Transforms a request arg into a bulk write operation */
-function convertBulkWriteOperation(op) {
-  return { [op.name]: op.arguments };
-}
-
-/** Transforms output of a bulk write to conform to the test format */
-function transformToResultValue(result) {
-  return result && result.value ? result.value : result;
 }
 
 /** Runs a command that turns off a fail point */

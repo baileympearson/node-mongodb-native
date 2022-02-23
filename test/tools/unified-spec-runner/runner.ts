@@ -187,14 +187,11 @@ export async function runUnifiedTest(
       for (const expectedEventList of test.expectEvents) {
         const clientId = expectedEventList.client;
         const eventType = expectedEventList.eventType;
-        let actualEvents: CmapEvent[] | CommandEvent[];
         // If no event type is provided it defaults to 'command', so just
         // check for 'cmap' here for now.
-        if (eventType === 'cmap') {
-          actualEvents = clientCmapEvents.get(clientId);
-        } else {
-          actualEvents = clientCommandEvents.get(clientId);
-        }
+        const actualEvents =
+          eventType === 'cmap' ? clientCmapEvents.get(clientId) : clientCommandEvents.get(clientId);
+
         expect(actualEvents, `No client entity found with id ${clientId}`).to.exist;
         matchesEvents(expectedEventList.events, actualEvents, entities);
       }
