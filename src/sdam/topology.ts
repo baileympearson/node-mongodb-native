@@ -879,7 +879,6 @@ function randomSelection(array: ServerDescription[]): ServerDescription {
  *
  * @param topology - The topology that this server belongs to
  * @param serverDescription - The description for the server to initialize and connect to
- * @param connectDelay - Time to wait before attempting initial connection
  */
 function createAndConnectServer(topology: Topology, serverDescription: ServerDescription) {
   topology.emit(

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { MongoServerError } from '../../../src';
 
-describe.only('Retryable Writes Spec Prose', () => {
+describe('Retryable Writes Spec Prose', () => {
   /**
    * 1 Test that retryable writes raise an exception when using the MMAPv1 storage engine.
    * For this test, execute a write operation, such as insertOne, which should generate an exception and the error code is 20.
