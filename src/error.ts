@@ -141,7 +141,7 @@ export class MongoError extends Error {
    * @param label - The error label to check for
    * @returns returns true if the error has the provided error label
    */
-  hasErrorLabel(label: MONGODB_ERROR_LABELS): boolean {
+  hasErrorLabel(label: string): boolean {
     if (this[kErrorLabels] == null) {
       return false;
     }

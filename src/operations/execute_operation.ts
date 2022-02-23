@@ -108,24 +108,19 @@ export function executeOperation<
 
     try {
       executeWithServerSelection<TResult>(topology, session, operation, (error, result) => {
-        if (session && session.owner != null && session.owner === owner) {
+        if (session?.owner != null && session.owner === owner) {
           return session.endSession(endSessionError => callback(endSessionError ?? error, result));
         }
 
         callback(error, result);
       });
     } catch (error) {
-      // TODO: we shouldn't catch here.
-      // We catch and NOT finally, cus its only in case of an error that we want to end the session
-      if (session?.owner != null && session?.owner === owner) {
+      if (session?.owner != null && session.owner === owner) {
         session.endSession();
       }
+      throw error;
     }
   });
-}
-
-function supportsRetryableReads(server?: Server) {
-  return maxWireVersion(server) >= 6;
 }
 
 function executeWithServerSelection<TResult>(
@@ -205,17 +200,13 @@ function executeWithServerSelection<TResult>(
 
     // select a new server, and attempt to retry the operation
     topology.selectServer(selector, serverSelectionOptions, (error?: Error, server?: Server) => {
-      if (!error && operation.hasAspect(Aspect.READ_OPERATION) && !supportsRetryableReads(server)) {
+      if (!error && operation.hasAspect(Aspect.READ_OPERATION)) {
         return callback(
           new MongoUnexpectedServerResponseError('Selected server does not support retryable reads')
         );
       }
 
-      if (
-        !error &&
-        operation.hasAspect(Aspect.WRITE_OPERATION) &&
-        !supportsRetryableWrites(server)
-      ) {
+      if (!error && isWriteOperation && !supportsRetryableWrites(server)) {
         return callback(
           new MongoUnexpectedServerResponseError(
             'Selected server does not support retryable writes'
@@ -254,17 +245,11 @@ function executeWithServerSelection<TResult>(
     }
 
     if (session && operation.hasAspect(Aspect.RETRYABLE)) {
-      const willRetryRead =
-        topology.s.options.retryReads !== false && // why is this not false
-        !inTransaction &&
-        supportsRetryableReads(server) &&
-        operation.canRetryRead;
+      const willRetryRead = topology.s.options.retryReads;
+      !inTransaction && operation.canRetryRead;
 
-      const willRetryWrite =
-        topology.s.options.retryWrites === true && // and this is true
-        !inTransaction &&
-        supportsRetryableWrites(server) &&
-        operation.canRetryWrite;
+      const willRetryWrite = topology.s.options.retryWrites;
+      !inTransaction && supportsRetryableWrites(server);
 
       const hasReadAspect = operation.hasAspect(Aspect.READ_OPERATION);
       const hasWriteAspect = operation.hasAspect(Aspect.WRITE_OPERATION);

@@ -55,7 +55,6 @@ export async function testFunc(): Promise<MongoClient> {
 
 MongoClient.connect(connectionString, err => {
   if (err instanceof MongoError) {
-    //@ts-expect-error // TODO? can we break?
     expectType<boolean>(err.hasErrorLabel('label'));
   }
 });

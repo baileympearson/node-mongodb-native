@@ -78,7 +78,7 @@ export class AggregateOperation<T = Document> extends CommandOperation<T> {
     }
   }
 
-  get canRetryRead(): boolean {
+  override get canRetryRead(): boolean {
     return !this.hasWriteStage;
   }
 

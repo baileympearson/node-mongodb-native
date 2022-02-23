@@ -1429,14 +1429,11 @@ export function supportsRetryableWrites(server?: Server): boolean {
     return true;
   }
 
-  if (server.description.maxWireVersion >= 6) {
-    // Talking to a 3.6+ server
-    if (server.description.logicalSessionTimeoutMinutes != null) {
-      // that supports sessions
-      if (server.description.type !== ServerType.Standalone) {
-        // and that is not a standalone
-        return true;
-      }
+  if (server.description.logicalSessionTimeoutMinutes != null) {
+    // that supports sessions
+    if (server.description.type !== ServerType.Standalone) {
+      // and that is not a standalone
+      return true;
     }
   }
 

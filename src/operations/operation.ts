@@ -96,10 +96,6 @@ export abstract class AbstractOperation<TResult = any> {
   get canRetryRead(): boolean {
     return true;
   }
-
-  get canRetryWrite(): boolean {
-    return true;
-  }
 }
 
 export function defineAspects(
