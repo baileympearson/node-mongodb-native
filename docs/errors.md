@@ -91,14 +91,14 @@ This class should **never** be directly instantiated.
 | **MongoChangeStreamError**  | Thrown when an error is encountered when operating on a ChangeStream.                      |
 | **MongoGridFSStreamError**  | Thrown when an unexpected state is reached when operating on a GridFS Stream.              |
 | **MongoGridFSChunkError**   | Thrown when a malformed or invalid chunk is encountered when reading from a GridFS Stream. |
-| **MongoUnexpectedServerResponseError**   | Thrown when the driver receives a **parsable** response it did not expect from the server |
+| **MongoUnexpectedServerResponseError**   | Thrown when the driver receives a **parsable** response it did not expect from the server. |
 
 ### MongoUnexpectedServerResponseError
 
-Intended for the scenario where the MongoDB returns an unexpected response in relation to some state the driver is in
+Intended for the scenario where the MongoDB returns an unexpected response in relation to some state the driver is in.
 This error should **NOT** represent a response that couldn't be parsed due to errors in protocol formatting.
 
-Ex. Server selection results in a feature detection change, this is not a direct unexpected response, but if we've begun retrying an operation and serverSelection during that retry returns a server with a lower wireVersion than expected, we can no longer proceed with the retry.
+Ex. Server selection results in a feature detection change: this is not usually an unexpected response, but if while retrying an operation serverSelection returns a server with a lower wireVersion than expected, we can no longer proceed with the retry, so the response is unexpected in that case.
 
 
 ### `MongoNetworkError`
