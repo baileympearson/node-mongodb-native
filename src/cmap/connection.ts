@@ -33,7 +33,7 @@ import {
   now,
   uuidV4
 } from '../utils';
-import type { W, WriteConcern, WriteConcernOptions } from '../write_concern';
+import type { WriteConcern } from '../write_concern';
 import type { MongoCredentials } from './auth/mongo_credentials';
 import {
   CommandFailedEvent,

@@ -164,19 +164,7 @@ function executeWithServerSelection<TResult>(
     const isWriteOperation = operation.hasAspect(Aspect.WRITE_OPERATION);
     const isReadOperation = operation.hasAspect(Aspect.READ_OPERATION);
 
-    if (isWriteOperation && !isRetryableWriteError(originalError, maxWireVersion)) {
-      return callback(originalError);
-    }
-
-    if (isReadOperation && !isRetryableReadError(originalError)) {
-      return callback(originalError);
-    }
-
-    if (
-      isWriteOperation &&
-      originalError.code === MMAPv1_RETRY_WRITES_ERROR_CODE &&
-      /Transaction numbers/.test(originalError.errmsg)
-    ) {
+    if (isWriteOperation && originalError.code === MMAPv1_RETRY_WRITES_ERROR_CODE) {
       return callback(
         new MongoServerError({
           message: MMAPv1_RETRY_WRITES_ERROR_MESSAGE,
@@ -184,6 +172,14 @@ function executeWithServerSelection<TResult>(
           originalError
         })
       );
+    }
+
+    if (isWriteOperation && !isRetryableWriteError(originalError, maxWireVersion)) {
+      return callback(originalError);
+    }
+
+    if (isReadOperation && !isRetryableReadError(originalError)) {
+      return callback(originalError);
     }
 
     if (
