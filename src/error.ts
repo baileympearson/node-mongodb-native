@@ -81,7 +81,7 @@ export const GET_MORE_RESUMABLE_CODES = new Set<number>([
 ]);
 
 /** @public */
-export const MONGODB_ERROR_LABELS = Object.freeze({
+export const MongoErrorLabel = Object.freeze({
   RetryableWriteError: 'RetryableWriteError',
   TransientTransactionError: 'TransientTransactionError',
   UnknownTransactionCommitResult: 'UnknownTransactionCommitResult',
@@ -89,7 +89,7 @@ export const MONGODB_ERROR_LABELS = Object.freeze({
 } as const);
 
 /** @public */
-export type MONGODB_ERROR_LABELS = typeof MONGODB_ERROR_LABELS[keyof typeof MONGODB_ERROR_LABELS];
+export type MongoErrorLabel = typeof MongoErrorLabel[keyof typeof MongoErrorLabel];
 
 /** @public */
 export interface ErrorDescription extends Document {
@@ -755,8 +755,8 @@ export function isRetryableWriteError(error: MongoError, maxWireVersion: number)
 
   if (maxWireVersion >= 9) {
     // After 4.4 the error label is the only source of truth for retry writes
-    return error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
-  } else if (error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError)) {
+    return error.hasErrorLabel(MongoErrorLabel.RetryableWriteError);
+  } else if (error.hasErrorLabel(MongoErrorLabel.RetryableWriteError)) {
     // Before 4.4 the error label can be one way of identifying retry
     // so we can return true if we have the label, but fall back to code checking below
     return true;
@@ -887,8 +887,7 @@ export function isResumableError(error?: MongoError, wireVersion?: number): bool
       return true;
     }
     return (
-      error instanceof MongoError &&
-      error.hasErrorLabel(MONGODB_ERROR_LABELS.ResumableChangeStreamError)
+      error instanceof MongoError && error.hasErrorLabel(MongoErrorLabel.ResumableChangeStreamError)
     );
   }
 

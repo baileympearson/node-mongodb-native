@@ -10,9 +10,9 @@ import {
   MongoAPIError,
   MongoCompatibilityError,
   MONGODB_ERROR_CODES,
-  MONGODB_ERROR_LABELS,
   MongoDriverError,
   MongoError,
+  MongoErrorLabel,
   MongoExpiredSessionError,
   MongoInvalidArgumentError,
   MongoNetworkError,
@@ -507,7 +507,7 @@ export function maybeClearPinnedConnection(
     session.inTransaction() &&
     error &&
     error instanceof MongoError &&
-    error.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)
+    error.hasErrorLabel(MongoErrorLabel.TransientTransactionError)
   ) {
     return;
   }
@@ -559,11 +559,11 @@ function attemptTransactionCommit<T>(
       hasNotTimedOut(startTime, MAX_WITH_TRANSACTION_TIMEOUT) &&
       !isMaxTimeMSExpiredError(err)
     ) {
-      if (err.hasErrorLabel(MONGODB_ERROR_LABELS.UnknownTransactionCommitResult)) {
+      if (err.hasErrorLabel(MongoErrorLabel.UnknownTransactionCommitResult)) {
         return attemptTransactionCommit(session, startTime, fn, options);
       }
 
-      if (err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)) {
+      if (err.hasErrorLabel(MongoErrorLabel.TransientTransactionError)) {
         return attemptTransaction(session, startTime, fn, options);
       }
     }
@@ -617,14 +617,14 @@ function attemptTransaction<TSchema>(
       function maybeRetryOrThrow(err: MongoError): Promise<any> {
         if (
           err instanceof MongoError &&
-          err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError) &&
+          err.hasErrorLabel(MongoErrorLabel.TransientTransactionError) &&
           hasNotTimedOut(startTime, MAX_WITH_TRANSACTION_TIMEOUT)
         ) {
           return attemptTransaction(session, startTime, fn, options);
         }
 
         if (isMaxTimeMSExpiredError(err)) {
-          err.addErrorLabel(MONGODB_ERROR_LABELS.UnknownTransactionCommitResult);
+          err.addErrorLabel(MongoErrorLabel.UnknownTransactionCommitResult);
         }
 
         throw err;
@@ -741,12 +741,12 @@ function endTransaction(
         isMaxTimeMSExpiredError(error)
       ) {
         if (isUnknownTransactionCommitResult(error)) {
-          error.addErrorLabel(MONGODB_ERROR_LABELS.UnknownTransactionCommitResult);
+          error.addErrorLabel(MongoErrorLabel.UnknownTransactionCommitResult);
 
           // per txns spec, must unpin session in this case
           session.unpin({ error });
         }
-      } else if (error.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)) {
+      } else if (error.hasErrorLabel(MongoErrorLabel.TransientTransactionError)) {
         session.unpin({ error });
       }
     }
@@ -773,10 +773,7 @@ function endTransaction(
         session.unpin();
       }
 
-      if (
-        error instanceof MongoError &&
-        error.hasErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError)
-      ) {
+      if (error instanceof MongoError && error.hasErrorLabel(MongoErrorLabel.RetryableWriteError)) {
         // SPEC-1185: apply majority write concern when retrying commitTransaction
         if (command.commitTransaction) {
           // per txns spec, must unpin session in this case

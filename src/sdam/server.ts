@@ -30,8 +30,8 @@ import {
   isRetryableWriteError,
   isSDAMUnrecoverableError,
   MongoCompatibilityError,
-  MONGODB_ERROR_LABELS,
   MongoError,
+  MongoErrorLabel,
   MongoInvalidArgumentError,
   MongoNetworkError,
   MongoNetworkTimeoutError,
@@ -559,9 +559,9 @@ function makeOperationHandler(
         // inActiveTransaction check handles commit and abort.
         if (
           inActiveTransaction(session, cmd) &&
-          !err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)
+          !err.hasErrorLabel(MongoErrorLabel.TransientTransactionError)
         ) {
-          err.addErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError);
+          err.addErrorLabel(MongoErrorLabel.TransientTransactionError);
         }
 
         if (
@@ -569,7 +569,7 @@ function makeOperationHandler(
           supportsRetryableWrites(server) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
+          err.addErrorLabel(MongoErrorLabel.RetryableWriteError);
         }
 
         if (!(err instanceof MongoNetworkTimeoutError) || isNetworkErrorBeforeHandshake(err)) {
@@ -589,7 +589,7 @@ function makeOperationHandler(
           isRetryableWriteError(err, maxWireVersion(server)) &&
           !inActiveTransaction(session, cmd)
         ) {
-          err.addErrorLabel(MONGODB_ERROR_LABELS.RetryableWriteError);
+          err.addErrorLabel(MongoErrorLabel.RetryableWriteError);
         }
 
         if (isSDAMUnrecoverableError(err)) {
@@ -609,7 +609,7 @@ function makeOperationHandler(
       if (
         session &&
         session.isPinned &&
-        err.hasErrorLabel(MONGODB_ERROR_LABELS.TransientTransactionError)
+        err.hasErrorLabel(MongoErrorLabel.TransientTransactionError)
       ) {
         session.unpin({ force: true });
       }
