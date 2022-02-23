@@ -41,7 +41,6 @@ import {
   now,
   uuidV4
 } from './utils';
-import type { WriteConcern } from './write_concern';
 
 const minWireVersionForShardedTransactions = 8;
 
@@ -940,11 +939,13 @@ export class ServerSessionPool {
  * @param session - the session tracking transaction state
  * @param command - the command to decorate
  * @param options - Optional settings passed to calling operation
+ *
+ * @internal
  */
 export function applySession(
   session: ClientSession,
   command: Document,
-  options?: CommandOptions
+  options: CommandOptions
 ): MongoDriverError | undefined {
   // TODO: merge this with `assertAlive`, did not want to throw a try/catch here
   if (session.hasEnded) {
@@ -956,10 +957,9 @@ export function applySession(
     return new MongoRuntimeError('Unable to acquire server session');
   }
 
-  // SPEC-1019: silently ignore explicit session with unacknowledged write for backwards compatibility
-  // FIXME: NODE-2781, this check for write concern shouldn't be happening here, but instead during command construction
-  if (options && options.writeConcern && (options.writeConcern as WriteConcern).w === 0) {
+  if (options.writeConcern?.w === 0) {
     if (session && session.explicit) {
+      // Error if user provided an explicit session to an unacknowledged write (SPEC-1019)
       return new MongoAPIError('Cannot have explicit session with unacknowledged writes');
     }
     return;
