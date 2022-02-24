@@ -115,10 +115,6 @@ for branch in "${BRANCHES[@]}"; do
     esac
 done
 
-# Generate docs for the current branch
-generate_4x "$VERSION"
-cp -R "checkout/$VERSION/docs/public" "./public/$VERSION"
-
 echo "copying generated docs to the gh-pages branch"
 rm -rf ./gh-pages
 git clone --branch "gh-pages" --depth 1 "$DRIVER_CLONE_URL" "gh-pages"
