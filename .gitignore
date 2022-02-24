@@ -9,7 +9,7 @@ pids
 *.swp
 *.tmp
 *.dat
-# *.png
+*.png
 test*.*
 output
 
@@ -53,7 +53,6 @@ build/Release
 node_modules
 yarn.lock
 lib/
-!docs/s/lib
 *.tgz
 *.d.ts
 # type definition tests
@@ -69,4 +68,7 @@ serverless.env
 lb-expansion.yml
 lb.env
 
+# Docs specific overrides
 docs_gen/build
+!docs/s/lib
+!docs/s/*.png
