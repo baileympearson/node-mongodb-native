@@ -1,12 +1,5 @@
 #! /usr/bin/env ts-node
 
-/**
- * 1. Update the toml file with the new version
- * 2. Update the json file with the new version
- * 3. Generate the site template
- * 4. Copy the contents of history into the generated site
- */
-
 import { parse, stringify } from '@iarna/toml';
 import * as child_process from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
@@ -14,15 +7,67 @@ import { promisify } from 'util';
 
 const exec = promisify(child_process.exec);
 
+/**
+ * ATTENTION - EDIT THIS BEFORE RELEASING
+ */
 const NEW_VERSION = {
-  version: 'Driver 4.5',
-  version_id: '4.5',
-  status: 'latest',
-  api: './4.5',
+  // version - the display name for the version of the driver on the docs website
+  //  ex: Driver 4.5
+  version: '',
+
+  // version_id - the actual version number of the docs
+  //  ex: 4.5
+  version_id: '',
+
+  // status - a status for the version.  typically would probably just be 'latest'
+  status: '',
+
+  // api - the name of the folder for the generated documentation to live.  typically should be version_id prefixed with `./`
+  //  ex: ./4.5
+  api: '',
+
+  // usesMongoDBManual - if true, includes a link to the mongodb documentation for the new version
   usesMongoDBManual: true
 };
 
-function checkForNewBuild() {
+function validateVersionInformation() {
+  const isVersionInfoValid = ['version', 'version_id', 'status', 'api'].every(
+    key => NEW_VERSION[key] !== ''
+  );
+
+  if (isVersionInfoValid) {
+    console.error(
+      'Error - version information invalid.  Please update the `NEW_VERSION` object before running the script.'
+    );
+    process.exit(1);
+  }
+}
+
+async function copyNewDocsToGeneratedSite({ version_id }) {
+  const versionName = version_id;
+  const outputDirectory = `./temp/${versionName}`;
+  const pathToBuiltDocs = './build';
+  const command = `cp -R ${pathToBuiltDocs} ${outputDirectory}`;
+  return await exec(command);
+}
+
+function updateSiteTemplateForNewVersion(newVersion: any) {
+  const RELEASES_TOML_FILE = './template/data/releases.toml';
+
+  const contents = parse(readFileSync(RELEASES_TOML_FILE, { encoding: 'utf8' })) as any;
+  contents.versions.unshift(newVersion);
+  writeFileSync(RELEASES_TOML_FILE, stringify(contents));
+
+  const RELEASES_JSON_FILE = './template/static/versions.json';
+
+  const versions = JSON.parse(readFileSync(RELEASES_JSON_FILE, { encoding: 'utf8' }));
+  versions.unshift({ version: newVersion.version_id });
+  writeFileSync(RELEASES_JSON_FILE, JSON.stringify(versions, null, 4));
+}
+
+async function main() {
+  validateVersionInformation();
+
   const pathToBuiltDocs = './build';
   const docsExist = existsSync(pathToBuiltDocs);
 
@@ -31,52 +76,17 @@ function checkForNewBuild() {
     console.error('Please build with npm run build:docs before running this script');
     process.exit(1);
   }
-}
 
-async function copyNewDocsToGeneratedSite(newVersion: any) {
-  const versionName = newVersion.version_id;
-  const outputDirectory = `./temp/${versionName}`;
-  const pathToBuiltDocs = './build';
-  const command = `cp -R ${pathToBuiltDocs} ${outputDirectory}`;
-  return await exec(command);
-}
+  updateSiteTemplateForNewVersion(NEW_VERSION);
 
-function updateTomlFile(newVersion: any) {
-  const RELEASES_TOML_FILE = './template/data/releases.toml';
-
-  const contents = readFileSync(RELEASES_TOML_FILE, { encoding: 'utf8' });
-
-  const versions = parse(contents) as {
-    [key: string]: any;
-    versions: any[];
-  };
-  versions.versions.unshift(NEW_VERSION);
-  writeFileSync(RELEASES_TOML_FILE, stringify(versions));
-}
-
-function updateJsonFile(newVersion: any) {
-  const RELEASES_JSON_FILE = './template/static/versions.json';
-  const versions = JSON.parse(readFileSync(RELEASES_JSON_FILE, { encoding: 'utf8' }));
-  versions.unshift({ version: newVersion.version_id });
-  writeFileSync(RELEASES_JSON_FILE, JSON.stringify(versions, null, 4));
-}
-
-async function generateSiteFromTemplate() {
-  const templateDirectory = 'template';
-  // output directory is relative to the template directory
-  const outputDirectory = '../temp';
-  const urlPrefix = '"/node-mongodb-native"';
-  const command = `hugo -s ${templateDirectory} -d ${outputDirectory} -b ${urlPrefix}`;
-  return await exec(command);
-}
-
-async function main() {
-  await checkForNewBuild();
-  updateTomlFile(NEW_VERSION);
-  updateJsonFile(NEW_VERSION);
-  await generateSiteFromTemplate();
+  // generate the site from the template
+  await exec(`hugo -s template -d ../temp -b "/node-mongodb-native"`);
   await copyNewDocsToGeneratedSite(NEW_VERSION);
+
+  // copy the generated site to the docs folder
   await exec(`cp -R temp/. ../docs/.`);
+
+  // cleanup
   await exec('rm -rf temp');
 }
 
