@@ -68,4 +68,7 @@ serverless.env
 lb-expansion.yml
 lb.env
 
+# Docs specific overrides
 docs_gen/build
+!docs/s/lib
+!docs/s/*.png
