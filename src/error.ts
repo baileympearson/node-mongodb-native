@@ -728,7 +728,7 @@ export class MongoWriteConcernError extends MongoServerError {
 }
 
 // https://github.com/mongodb/specifications/blob/master/source/retryable-reads/retryable-reads.rst#retryable-error
-const RETRYABLE_READS_ERROR_CODES = new Set<number>([
+const RETRYABLE_READ_ERROR_CODES = new Set<number>([
   MONGODB_ERROR_CODES.HostUnreachable,
   MONGODB_ERROR_CODES.HostNotFound,
   MONGODB_ERROR_CODES.NetworkTimeout,
@@ -744,13 +744,17 @@ const RETRYABLE_READS_ERROR_CODES = new Set<number>([
 
 // see: https://github.com/mongodb/specifications/blob/master/source/retryable-writes/retryable-writes.rst#terms
 const RETRYABLE_WRITE_ERROR_CODES = new Set<number>([
-  ...RETRYABLE_READS_ERROR_CODES,
+  ...RETRYABLE_READ_ERROR_CODES,
   MONGODB_ERROR_CODES.ExceededTimeLimit
 ]);
 
 export function isRetryableWriteError(error: MongoError, maxWireVersion: number): boolean {
   if (!(error instanceof MongoError)) {
     return false;
+  }
+
+  if (error instanceof MongoNetworkError) {
+    return true;
   }
 
   if (maxWireVersion >= 9) {
@@ -764,19 +768,23 @@ export function isRetryableWriteError(error: MongoError, maxWireVersion: number)
   if (error instanceof MongoWriteConcernError) {
     return RETRYABLE_WRITE_ERROR_CODES.has(error.result?.code ?? error.code ?? 0);
   }
-  return typeof error.code === 'number' && RETRYABLE_WRITE_ERROR_CODES.has(error.code);
+
+  if (typeof error.code === 'number') {
+    return RETRYABLE_WRITE_ERROR_CODES.has(error.code);
+  }
+
+  return isRetryableReadError(error);
 }
 
 /** Determines whether an error is something the driver should attempt to retry */
 export function isRetryableReadError(error: MongoError): boolean {
   const hasRetryableErrorCode =
-    typeof error.code === 'number' ? RETRYABLE_READS_ERROR_CODES.has(error.code) : false;
+    typeof error.code === 'number' ? RETRYABLE_READ_ERROR_CODES.has(error.code) : false;
   if (hasRetryableErrorCode) {
     return true;
   }
 
-  const isNetworkError = error instanceof MongoNetworkError;
-  if (isNetworkError) {
+  if (error instanceof MongoNetworkError) {
     return true;
   }
 

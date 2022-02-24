@@ -400,16 +400,33 @@ describe('MongoErrors', () => {
 
   describe('retryable errors', () => {
     describe('#isRetryableWriteError', () => {
-      const tests: { result: boolean; error: MongoError; maxWireVersion: number }[] = [
-        // @ts-expect-error: passing in a plain error to test false case
-        { result: false, error: new Error('do not retry me!'), maxWireVersion: 2.3 },
-        { result: false, error: new MongoError('do not retry me!'), maxWireVersion: 2.3 },
+      const tests: {
+        description: string;
+        result: boolean;
+        error: MongoError;
+        maxWireVersion: number;
+      }[] = [
         {
+          description: 'a plain error',
+          result: false,
+          // @ts-expect-error: passing in a plain error to test false case
+          error: new Error('do not retry me!'),
+          maxWireVersion: 2.3
+        },
+        {
+          description: 'a MongoError with no code nor label',
+          result: false,
+          error: new MongoError('do not retry me!'),
+          maxWireVersion: 2.3
+        },
+        {
+          description: 'a MongoWriteConcernError with no code nor label',
           result: false,
           error: new MongoWriteConcernError({ message: 'empty wc error' }),
           maxWireVersion: 2.3
         },
         {
+          description: 'a MongoWriteConcernError with a random label',
           result: false,
           error: new MongoWriteConcernError(
             { message: 'random label' },
@@ -418,71 +435,107 @@ describe('MongoErrors', () => {
           maxWireVersion: 0
         },
         {
+          description: 'a MongoWriteConcernError with an ExceededTimeLimit code above server 4.4',
           result: false,
-          error: new MongoWriteConcernError(
-            { message: 'code 262 - ExceededTimeLimit is ignored on newer servers' },
-            { code: 262 }
-          ),
+          error: new MongoWriteConcernError({}, { code: 262 }),
           maxWireVersion: 9
         },
         {
+          description: 'a MongoWriteConcernError with an ExceededTimeLimit code below server 4.4',
           result: true,
-          error: new MongoWriteConcernError(
-            { message: 'code 262 - ExceededTimeLimit is retryable' },
-            { code: 262 }
-          ),
+          error: new MongoWriteConcernError({}, { code: 262 }),
           maxWireVersion: 2.3
         },
         {
+          description: 'a MongoWriteConcernError with a RetryableWriteError label below server 4.4',
           result: true,
-          error: new MongoWriteConcernError(
-            { message: 'RetryableWriteError error label attached low wire version' },
-            { errorLabels: ['RetryableWriteError'] }
-          ),
+          error: new MongoWriteConcernError({}, { errorLabels: ['RetryableWriteError'] }),
           maxWireVersion: 0
         },
         {
+          description: 'a MongoWriteConcernError with a RetryableWriteError label above server 4.4',
           result: true,
-          error: new MongoWriteConcernError(
-            { message: 'RetryableWriteError error label attached wire version 9+' },
-            { errorLabels: ['RetryableWriteError'] }
-          ),
+          error: new MongoWriteConcernError({}, { errorLabels: ['RetryableWriteError'] }),
+          maxWireVersion: 9
+        },
+        {
+          description: 'any MongoError with a RetryableWriteError label',
+          result: true,
+          error: (() => {
+            // These tests all use MongoWriteConcernError because
+            // its constructor is easier to call but any MongoError should work
+            const error = new MongoError('');
+            error.addErrorLabel('RetryableWriteError');
+            return error;
+          })(),
           maxWireVersion: 9
         }
       ];
-      for (const { result, error, maxWireVersion } of tests) {
-        it(`should return ${result} for isRetryableWriteError(${error}, ${maxWireVersion})`, () => {
-          expect(result).to.be.equal(isRetryableWriteError(error, maxWireVersion));
+      for (const { description, result, error, maxWireVersion } of tests) {
+        it(`${description} is${result ? '' : ' not'} a retryable write`, () => {
+          expect(isRetryableWriteError(error, maxWireVersion)).to.be.equal(result);
         });
       }
     });
 
     describe('#isRetryableReadError', () => {
-      const tests: { result: boolean; error: MongoError }[] = [
-        // @ts-expect-error: passing in a plain error to test false case
-        { result: false, error: new Error('do not retry me!') },
-        { result: false, error: new MongoServerError({ message: 'random code 1', code: 1 }) },
+      const tests: { description: string; result: boolean; error: MongoError }[] = [
         {
-          result: true,
-          error: new MongoServerError({ message: 'ShutdownInProgress is retryable', code: 91 })
+          description: 'plain error',
+          result: false,
+          // @ts-expect-error: passing in a plain error to test false case
+          error: new Error('do not retry me!')
         },
         {
+          description: 'error code 1',
+          result: false,
+          error: new MongoServerError({ message: '', code: 1 })
+        },
+        {
+          description: 'error code ShutdownInProgress',
+          result: true,
+          error: new MongoServerError({ message: '', code: 91 })
+        },
+        {
+          description: 'network error',
           result: true,
           error: new MongoNetworkError('socket bad, try again')
         },
         {
+          description: 'error with legacy not writable primary error message',
           result: true,
           error: new MongoError(LEGACY_NOT_WRITABLE_PRIMARY_ERROR_MESSAGE)
         },
         {
+          description: 'error with node is recovering',
           result: true,
           error: new MongoError('node is recovering')
         }
       ];
 
-      for (const { result, error } of tests) {
-        it(`should return ${result} for isRetryableWriteError(${error})`, () => {
-          expect(result).to.be.equal(isRetryableReadError(error));
+      for (const { description, result, error } of tests) {
+        it(`${description} is${result ? '' : ' not'} a retryable read`, () => {
+          expect(isRetryableReadError(error)).to.be.equal(result);
+        });
+      }
+
+      for (const { description, result, error } of tests) {
+        if (error instanceof MongoNetworkError) {
+          // Network errors are retryable write or read
+          it(`${description} is${result ? '' : ' not'} a retryable write above v4.4`, () => {
+            expect(isRetryableWriteError(error, 9)).to.be.equal(result);
+          });
+        } else {
+          const res = result === false ? result : !result;
+          it(`${description} is${res ? '' : ' not'} a retryable write above v4.4`, () => {
+            expect(isRetryableWriteError(error, 9)).to.be.equal(res);
+          });
+        }
+      }
+
+      for (const { description, result, error } of tests) {
+        it(`${description} is${result ? '' : ' not'} a retryable write below v4.4`, () => {
+          expect(isRetryableWriteError(error, 0)).to.be.equal(result);
         });
       }
     });

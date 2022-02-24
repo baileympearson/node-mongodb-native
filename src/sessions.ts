@@ -6,7 +6,7 @@ import { PINNED, UNPINNED } from './constants';
 import type { AbstractCursor } from './cursor/abstract_cursor';
 import {
   AnyError,
-  isRetryableReadError,
+  isRetryableWriteError,
   MongoAPIError,
   MongoCompatibilityError,
   MONGODB_ERROR_CODES,
@@ -15,11 +15,9 @@ import {
   MongoErrorLabel,
   MongoExpiredSessionError,
   MongoInvalidArgumentError,
-  MongoNetworkError,
   MongoRuntimeError,
   MongoServerError,
-  MongoTransactionError,
-  MongoWriteConcernError
+  MongoTransactionError
 } from './error';
 import type { MongoOptions } from './mongo_client';
 import { TypedEventEmitter } from './mongo_types';
@@ -734,9 +732,7 @@ function endTransaction(
     session.transaction.transition(TxnState.TRANSACTION_COMMITTED);
     if (error instanceof MongoError) {
       if (
-        error instanceof MongoNetworkError ||
-        error instanceof MongoWriteConcernError ||
-        isRetryableReadError(error) || // TODO is commit a write? probably, double check its retry rules
+        isRetryableWriteError(error, maxWireVersion(session.topology)) ||
         isMaxTimeMSExpiredError(error)
       ) {
         if (isUnknownTransactionCommitResult(error)) {

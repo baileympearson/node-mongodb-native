@@ -117,16 +117,16 @@ async function executeScenarioTest(test, ctx: RetryableWriteTestContext) {
   // In case the spec files or our API changes
   expect(ctx.collection).to.have.property(test.operation.name).that.is.a('function');
 
-  let thrownError;
-  const result = await ctx.collection[test.operation.name](...args).catch(
-    error => (thrownError = error)
-  );
+  // TODO(NODE-4033): Collect command started events and assert txn number existence or omission
+  // have to add logic to handle bulkWrites which emit multiple command started events
+  const resultOrError = await ctx.collection[test.operation.name](...args).catch(error => error);
 
   const outcome = test.outcome && test.outcome.result;
   const errorLabelsContain = outcome && outcome.errorLabelsContain;
   const errorLabelsOmit = outcome && outcome.errorLabelsOmit;
   const hasResult = outcome && !errorLabelsContain && !errorLabelsOmit;
   if (test.outcome.error) {
+    const thrownError = resultOrError;
     expect(thrownError, `${test.operation.name} was supposed to fail but did not!`).to.exist;
     expect(thrownError).to.have.property('message');
 
@@ -144,22 +144,18 @@ async function executeScenarioTest(test, ctx: RetryableWriteTestContext) {
       }
     }
   } else if (test.outcome.result) {
-    expect(thrownError, thrownError?.stack).to.not.exist;
+    expect(resultOrError, resultOrError.stack).to.not.be.instanceOf(Error);
+    const result = resultOrError;
     const expected = test.outcome.result;
-    // TODO(NODE-XXXX): Make CRUD results spec compliant
 
-    // Transforms output of a bulk write to conform to the test format
-    // bulk has a value property
+    // TODO(NODE-4034): Make CRUD results spec compliant
     expect(result.value ?? result).to.deep.include(expected);
   }
 
   if (test.outcome.collection) {
     const collectionResults = await ctx.collection.find({}).toArray();
-
     expect(collectionResults).to.deep.equal(test.outcome.collection.data);
   }
-
-  return result;
 }
 
 // Helper Functions
