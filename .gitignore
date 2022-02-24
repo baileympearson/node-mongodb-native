@@ -67,3 +67,5 @@ serverless.env
 
 lb-expansion.yml
 lb.env
+
+docs_gen/build
