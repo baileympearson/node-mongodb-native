@@ -35,7 +35,7 @@ function validateVersionInformation() {
     key => NEW_VERSION[key] !== ''
   );
 
-  if (isVersionInfoValid) {
+  if (!isVersionInfoValid) {
     console.error(
       'Error - version information invalid.  Please update the `NEW_VERSION` object before running the script.'
     );
