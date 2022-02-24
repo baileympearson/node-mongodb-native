@@ -2,19 +2,6 @@ current = "4.4 Driver"
 mongoDBManual = "https://docs.mongodb.com/drivers/node/"
 
 [[versions]]
-version = "Driver 4.5"
-version_id = "4.5"
-status = "latest"
-api = "./4.5"
-usesMongoDBManual = true
-
-[[versions]]
-version = "Current"
-status = "latest"
-api = "./main"
-usesMongoDBManual = true
-
-[[versions]]
 version = "4.4 Driver"
 status = "current"
 api = "./4.4"
