@@ -3,17 +3,17 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>/node-mongodb-native/categories/</loc>
+    <loc>/node-mongodb-native/docs/categories/</loc>
     <priority>0</priority>
   </url>
   
   <url>
-    <loc>/node-mongodb-native/</loc>
+    <loc>/node-mongodb-native/docs/</loc>
     <priority>0</priority>
   </url>
   
   <url>
-    <loc>/node-mongodb-native/tags/</loc>
+    <loc>/node-mongodb-native/docs/tags/</loc>
     <priority>0</priority>
   </url>
   

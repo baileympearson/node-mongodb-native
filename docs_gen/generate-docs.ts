@@ -15,10 +15,10 @@ import { promisify } from 'util';
 const exec = promisify(child_process.exec);
 
 const NEW_VERSION = {
-  version: 'Driver 4.5',
-  version_id: '4.5',
+  version: '4.6 Driver',
+  version_id: '4.6',
   status: 'latest',
-  api: './4.5',
+  api: './4.6',
   usesMongoDBManual: true
 };
 
@@ -65,7 +65,7 @@ async function generateSiteFromTemplate() {
   const templateDirectory = 'template';
   // output directory is relative to the template directory
   const outputDirectory = '../temp';
-  const urlPrefix = '"/node-mongodb-native"';
+  const urlPrefix = '"/node-mongodb-native/docs"';
   const command = `hugo -s ${templateDirectory} -d ${outputDirectory} -b ${urlPrefix}`;
   return await exec(command);
 }
