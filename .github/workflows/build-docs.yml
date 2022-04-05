@@ -39,4 +39,5 @@ jobs:
         npm run build:docs -- --yes
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
-      title: 'docs: generate docs off of latest main'
+      with:
+        title: 'docs: generate docs off of latest main'
