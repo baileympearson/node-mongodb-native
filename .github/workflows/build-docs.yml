@@ -32,8 +32,9 @@ jobs:
 
         # TODO - pin Hugo install version
         sudo apt-get install hugo
+        hugo version 
         npm run build:docs -- --yes
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
       with:
-        title: 'docs: generate docs off of latest main'
+        title: 'docs: generate docs from latest main'
