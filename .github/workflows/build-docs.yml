@@ -30,8 +30,7 @@ jobs:
       run: |
         npm ci
 
-        # TODO - pin Hugo install version
-        sudo apt-get install hugo
+        sudo apt-get install hugo=0.68.3-1
         hugo version 
         npm run build:docs -- --yes
     - name: Create Pull Request
