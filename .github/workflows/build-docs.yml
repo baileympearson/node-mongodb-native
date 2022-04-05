@@ -1,0 +1,42 @@
+name: Build and commit docs
+
+on:
+  push:
+    branches: [ main ]
+    
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  build:
+  
+    # prevent subsequent commits from trigger the job multiple times
+    concurrency:
+      group: ci-${{ github.ref }}
+      cancel-in-progress: true
+      
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [16.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - name: Install and Build Docs
+      run: |
+        npm ci
+
+        # TODO - pin Hugo install version
+        sudo apt-get install hugo
+        npm run build:docs -- --yes
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v4
+      title: 'docs: generate docs off of latest main'
