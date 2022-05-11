@@ -21,6 +21,12 @@ import type {
   Timestamp,
   UpdateDescription
 } from '../../src';
+import type {
+  ChangeStreamCollModDocument,
+  ChangeStreamCreateDocument,
+  ChangeStreamCreateIndexDocument,
+  ChangeStreamDropIndexDocument
+} from '../../src/change_stream';
 
 declare const changeStreamOptions: ChangeStreamOptions;
 type ChangeStreamOperationType =
@@ -31,7 +37,11 @@ type ChangeStreamOperationType =
   | 'invalidate'
   | 'drop'
   | 'dropDatabase'
-  | 'rename';
+  | 'rename'
+  | 'create'
+  | 'modify'
+  | 'createIndexes'
+  | 'dropIndexes';
 
 // The change stream spec says that we cannot throw an error for invalid values to `fullDocument`
 // for future compatibility.  This means we must leave `fullDocument` as type string.
@@ -120,6 +130,26 @@ switch (change.operationType) {
   case 'invalidate': {
     expectType<ChangeStreamInvalidateDocument>(change);
     expectType<'invalidate'>(change.operationType);
+    break;
+  }
+  case 'create': {
+    expectType<ChangeStreamCreateDocument>(change);
+    expectType<'create'>(change.operationType);
+    break;
+  }
+  case 'modify': {
+    expectType<ChangeStreamCollModDocument>(change);
+    expectType<'modify'>(change.operationType);
+    break;
+  }
+  case 'createIndexes': {
+    expectType<ChangeStreamCreateIndexDocument>(change);
+    expectType<'createIndexes'>(change.operationType);
+    break;
+  }
+  case 'dropIndexes': {
+    expectType<ChangeStreamDropIndexDocument>(change);
+    expectType<'dropIndexes'>(change.operationType);
     break;
   }
   default: {

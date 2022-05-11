@@ -1,3 +1,4 @@
+import type { UUID } from 'bson';
 import Denque = require('denque');
 import type { Readable } from 'stream';
 
@@ -50,7 +51,8 @@ const CHANGE_STREAM_OPTIONS = [
   'resumeAfter',
   'startAfter',
   'startAtOperationTime',
-  'fullDocument'
+  'fullDocument',
+  'showExpandedEvents'
 ] as const;
 
 const CURSOR_OPTIONS = [
@@ -155,6 +157,20 @@ export interface ChangeStreamOptions extends AggregateOptions {
    * @see https://docs.mongodb.com/manual/reference/command/aggregate
    */
   batchSize?: number;
+
+  /**
+   * When enabled, configures the change stream to include extra change events.
+   *
+   * - createIndex
+   * - dropIndex
+   * - collMod
+   * - create
+   * - shardCollection
+   * - reshardCollection
+   * - refineCollectionShardKey
+   * - chunkMigrated
+   */
+  showExpandedEvents?: boolean;
 }
 
 /** @public */
@@ -291,6 +307,25 @@ export interface ChangeStreamRenameDocument extends ChangeStreamDocumentCommon {
   to: { db: string; coll: string };
   /** The "from" namespace that the rename occured on */
   ns: ChangeStreamNameSpace;
+  /**
+   * An operation description representing the changes in a `rename` event.
+   *
+   * Only present when the `showExpandedEvents` flag is enabled.
+   *
+   * @since 6.0.0
+   */
+  operationDescription?: {
+    /**
+     * Contains two fields: "db" and "coll" containing the database and
+     * collection name in which the change happened.
+     */
+    to?: { db: string; coll: string };
+
+    /**
+     * The uuid of the target collection that was dropped.
+     */
+    dropTarget?: UUID; // TODO - confirm that this value is optional
+  };
 }
 
 /**
@@ -313,6 +348,45 @@ export interface ChangeStreamInvalidateDocument extends ChangeStreamDocumentComm
   operationType: 'invalidate';
 }
 
+/**
+ * Only present when the `showExpandedEvents` flag is enabled.
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#invalidate-event
+ */
+export interface ChangeStreamCreateIndexDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'createIndexes';
+}
+
+/**
+ * Only present when the `showExpandedEvents` flag is enabled.
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#invalidate-event
+ */
+export interface ChangeStreamDropIndexDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'dropIndexes';
+}
+
+/**
+ * Only present when the `showExpandedEvents` flag is enabled.
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#invalidate-event
+ */
+export interface ChangeStreamCollModDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'modify';
+}
+
+/**
+ * @public
+ * @see https://www.mongodb.com/docs/manual/reference/change-events/#invalidate-event
+ */
+export interface ChangeStreamCreateDocument extends ChangeStreamDocumentCommon {
+  /** Describes the type of operation represented in this change notification */
+  operationType: 'create';
+}
+
 /** @public */
 export type ChangeStreamDocument<TSchema extends Document = Document> =
   | ChangeStreamInsertDocument<TSchema>
@@ -322,7 +396,11 @@ export type ChangeStreamDocument<TSchema extends Document = Document> =
   | ChangeStreamDropDocument
   | ChangeStreamRenameDocument
   | ChangeStreamDropDatabaseDocument
-  | ChangeStreamInvalidateDocument;
+  | ChangeStreamInvalidateDocument
+  | ChangeStreamCreateIndexDocument
+  | ChangeStreamCreateDocument
+  | ChangeStreamCollModDocument
+  | ChangeStreamDropIndexDocument;
 
 /** @public */
 export interface UpdateDescription<TSchema extends Document = Document> {

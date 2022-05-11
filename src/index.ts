@@ -171,6 +171,9 @@ export type { UnorderedBulkOperation } from './bulk/unordered';
 export type {
   ChangeStream,
   ChangeStreamAggregateRawResult,
+  ChangeStreamCollModDocument,
+  ChangeStreamCreateDocument,
+  ChangeStreamCreateIndexDocument,
   ChangeStreamCursor,
   ChangeStreamCursorOptions,
   ChangeStreamDeleteDocument,
@@ -179,6 +182,7 @@ export type {
   ChangeStreamDocumentKey,
   ChangeStreamDropDatabaseDocument,
   ChangeStreamDropDocument,
+  ChangeStreamDropIndexDocument,
   ChangeStreamEvents,
   ChangeStreamInsertDocument,
   ChangeStreamInvalidateDocument,
