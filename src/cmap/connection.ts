@@ -400,6 +400,20 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
 
     const callback = operationDescription.cb;
 
+    // // SERVER-45775: For exhaust responses we should be able to use the same requestId to
+    // // track response, however the server currently synthetically produces remote requests
+    // // making the `responseTo` change on each response
+    // this[kQueue].delete(message.responseTo);
+    // if ('moreToCome' in message && message.moreToCome) {
+    //   // If the operation description check above does find an orphaned
+    //   // description and sets the operationDescription then this line will put one
+    //   // back in the queue with the correct requestId and will resolve not being able
+    //   // to find the next one via the responseTo of the next streaming hello.
+    //   this[kQueue].set(message.requestId, operationDescription);
+    // } else if (operationDescription.socketTimeoutOverride) {
+    //   this[kStream].setTimeout(this.socketTimeoutMS);
+    // }
+
     // SERVER-45775: For exhaust responses we should be able to use the same requestId to
     // track response, however the server currently synthetically produces remote requests
     // making the `responseTo` change on each response
@@ -410,8 +424,11 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
       // back in the queue with the correct requestId and will resolve not being able
       // to find the next one via the responseTo of the next streaming hello.
       this[kQueue].set(message.requestId, operationDescription);
-    } else if (operationDescription.socketTimeoutOverride) {
-      this[kStream].setTimeout(this.socketTimeoutMS);
+      if (operationDescription.socketTimeoutOverride) {
+        this[kStream].setTimeout(this.socketTimeoutMS);
+      }
+    } else {
+      this[kStream].setTimeout(0);
     }
 
     try {

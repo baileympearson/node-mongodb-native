@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { assert } from 'console';
 
 import { MongoClient, MongoServerError, ServerHeartbeatStartedEvent } from '../../../src';
 import { connect } from '../../../src/cmap/connect';
@@ -7,6 +8,7 @@ import { LEGACY_HELLO_COMMAND } from '../../../src/constants';
 import { Topology } from '../../../src/sdam/topology';
 import { HostAddress, ns } from '../../../src/utils';
 import { skipBrokenAuthTestBeforeEachHook } from '../../tools/runner/hooks/configuration';
+import { sleep } from '../../tools/utils';
 import { assert as test, setupDatabase } from '../shared';
 
 describe('Connection', function () {
@@ -21,6 +23,40 @@ describe('Connection', function () {
 
   before(function () {
     return setupDatabase(this.configuration);
+  });
+
+  describe('NODE-4854-reproduction', function () {
+    let client: MongoClient;
+    const connectionDestroyedEvents: any[] = [];
+
+    beforeEach(async function () {
+      client = new MongoClient(process.env.MONGODB_URI!, {
+        socketTimeoutMS: 1000,
+        minPoolSize: 5,
+        maxPoolSize: 5,
+        monitorCommands: true
+      });
+
+      client.on('connectionClosed', e => {
+        connectionDestroyedEvents.push(e.connectionId);
+      });
+
+      await client.connect();
+    });
+
+    afterEach(() => client.close());
+
+    it.only('should not destroy connections', async function () {
+      const collection = client.db('foo').collection('bar');
+      await collection.insertOne({ name: 'bailey' });
+
+      // use a bunch of connections
+      await Promise.all(Array.from({ length: 10 }).map(() => collection.find({}).toArray()));
+
+      await sleep(4000);
+
+      expect(connectionDestroyedEvents).to.have.lengthOf(0);
+    });
   });
 
   describe('Connection - functional/cmap', function () {
