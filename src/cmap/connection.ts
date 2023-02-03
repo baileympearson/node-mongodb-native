@@ -15,6 +15,7 @@ import type { AutoEncrypter } from '../deps';
 import {
   MongoNetworkError,
   MongoNetworkTimeoutError,
+  MongoRuntimeError,
   MongoServerError,
   MongoWriteConcernError
 } from '../error';
@@ -63,6 +64,8 @@ const kDescription = Symbol('description');
 const kHello = Symbol('hello');
 /** @internal */
 const kDelayedTimeoutId = Symbol('delayedTimeoutId');
+
+const INVALID_QUEUE_SIZE = 'Connection internal queue contains more than 1 operation description';
 
 /** @internal */
 export interface CommandOptions extends BSONSerializeOptions {
@@ -162,7 +165,7 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
   /** @internal */
   [kLastUseTime]: number;
   /** @internal */
-  [kQueue]: OperationDescription | null;
+  [kQueue]: Map<number, OperationDescription>;
   /** @internal */
   [kMessageStream]: MessageStream;
   /** @internal */
@@ -205,7 +208,7 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
     this[kLastUseTime] = now();
 
     // setup parser stream and message handling
-    this[kQueue] = null;
+    this[kQueue] = new Map();
     this[kMessageStream] = new MessageStream({
       ...options,
       maxBsonMessageSize: this.hello?.maxBsonMessageSize
@@ -297,16 +300,17 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
     this[kLastUseTime] = now();
   }
 
-  private _destroy(error: Error) {
+  _destroy(error: Error) {
     if (this.closed) {
       return;
     }
     this.destroy({ force: false });
 
-    this[kQueue]?.cb(error);
+    for (const op of this[kQueue].values()) {
+      op.cb(error);
+    }
 
-    this[kQueue] = null;
-
+    this[kQueue].clear();
     this.emit(Connection.CLOSE);
   }
 
@@ -319,7 +323,27 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
 
     // always emit the message, in case we are streaming
     this.emit('message', message);
-    const operationDescription = this[kQueue];
+    let operationDescription = this[kQueue].get(message.responseTo);
+
+    if (!operationDescription && this.isMonitoringConnection) {
+      // This is how we recover when the initial hello's requestId is not
+      // the responseTo when hello responses have been skipped:
+
+      // First check if the map is of invalid size
+      if (this[kQueue].size > 1) {
+        this._destroy(new MongoRuntimeError(INVALID_QUEUE_SIZE));
+      } else {
+        // Get the first orphaned operation description.
+        const entry = this[kQueue].entries().next();
+        if (entry.value != null) {
+          const [requestId, orphaned]: [number, OperationDescription] = entry.value;
+          // If the orphaned operation description exists then set it.
+          operationDescription = orphaned;
+          // Remove the entry with the bad request id from the queue.
+          this[kQueue].delete(requestId);
+        }
+      }
+    }
 
     if (!operationDescription) {
       return;
@@ -327,7 +351,17 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
 
     const callback = operationDescription.cb;
 
-    if (operationDescription.socketTimeoutOverride) {
+    // SERVER-45775: For exhaust responses we should be able to use the same requestId to
+    // track response, however the server currently synthetically produces remote requests
+    // making the `responseTo` change on each response
+    this[kQueue].delete(message.responseTo);
+    if ('moreToCome' in message && message.moreToCome) {
+      // If the operation description check above does find an orphaned
+      // description and sets the operationDescription then this line will put one
+      // back in the queue with the correct requestId and will resolve not being able
+      // to find the next one via the responseTo of the next streaming hello.
+      this[kQueue].set(message.requestId, operationDescription);
+    } else if (operationDescription.socketTimeoutOverride) {
       this[kStream].setTimeout(this.socketTimeoutMS);
     }
 
@@ -573,14 +607,14 @@ function write(
   }
 
   if (!operationDescription.noResponse) {
-    conn[kQueue] = operationDescription;
+    conn[kQueue].set(operationDescription.requestId, operationDescription);
   }
 
   try {
     conn[kMessageStream].writeCommand(command, operationDescription);
   } catch (e) {
     if (!operationDescription.noResponse) {
-      conn[kQueue] = null;
+      conn[kQueue].delete(operationDescription.requestId);
       operationDescription.cb(e);
       return;
     }

@@ -471,7 +471,7 @@ export class ConnectionPool extends TypedEventEmitter<ConnectionPoolEvents> {
     for (const connection of this[kCheckedOut]) {
       if (connection.generation <= minGeneration) {
         this.checkIn(connection);
-        connection.onError(new PoolClearedOnNetworkError(this));
+        connection._destroy(new PoolClearedOnNetworkError(this));
       }
     }
   }
