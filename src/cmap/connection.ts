@@ -402,6 +402,8 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
       return;
     }
 
+    // TODO: should we be returning inside this method and throwing elsewhere maybe?
+    // or will `message.documents[0]` be empty for noResponse methods?
     if (message.documents[0]) {
       const document: Document = message.documents[0];
       const session = operationDescription.session;
