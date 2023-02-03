@@ -27,7 +27,8 @@ import { Plain } from './auth/plain';
 import { AuthMechanism } from './auth/providers';
 import { ScramSHA1, ScramSHA256 } from './auth/scram';
 import { X509 } from './auth/x509';
-import { Connection, ConnectionOptions, CryptoConnection } from './connection';
+import { Connection, ConnectionOptions } from './connection';
+import { CryptoConnection } from './crypto_connection';
 import {
   MAX_SUPPORTED_SERVER_VERSION,
   MAX_SUPPORTED_WIRE_VERSION,
