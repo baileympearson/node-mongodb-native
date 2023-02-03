@@ -215,9 +215,21 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
     this[kDelayedTimeoutId] = null;
 
     this[kMessageStream].on('message', message => this.onMessage(message));
-    this[kMessageStream].on('error', error => this.onError(error));
-    this[kStream].on('close', () => this.onClose());
-    this[kStream].on('timeout', () => this.onTimeout());
+    this[kMessageStream].on('error', error => this._destroy(error));
+    this[kStream].on('close', () =>
+      this._destroy(new MongoNetworkError(`connection ${this.id} to ${this.address} closed`))
+    );
+    this[kStream].on('timeout', () => {
+      if (this.closed) return;
+
+      this[kDelayedTimeoutId] = setTimeout(() => {
+        this._destroy(
+          new MongoNetworkTimeoutError(`connection ${this.id} to ${this.address} timed out`, {
+            beforeHandshake: this.hello == null
+          })
+        );
+      }, 1).unref(); // No need for this timer to hold the event loop open
+    });
     this[kStream].on('error', () => {
       /* ignore errors, listen to `close` instead */
     });
@@ -285,55 +297,17 @@ export class Connection extends TypedEventEmitter<ConnectionEvents> {
     this[kLastUseTime] = now();
   }
 
-  onError(error: Error) {
+  private _destroy(error: Error) {
     if (this.closed) {
       return;
     }
     this.destroy({ force: false });
 
-    if (this[kQueue] != null) {
-      this[kQueue].cb(error);
-    }
+    this[kQueue]?.cb(error);
 
     this[kQueue] = null;
 
     this.emit(Connection.CLOSE);
-  }
-
-  onClose() {
-    if (this.closed) {
-      return;
-    }
-    this.destroy({ force: false });
-
-    const message = `connection ${this.id} to ${this.address} closed`;
-    if (this[kQueue] != null) {
-      this[kQueue].cb(new MongoNetworkError(message));
-    }
-
-    this[kQueue] = null;
-    this.emit(Connection.CLOSE);
-  }
-
-  onTimeout() {
-    if (this.closed) {
-      return;
-    }
-
-    this[kDelayedTimeoutId] = setTimeout(() => {
-      this.destroy({ force: false });
-
-      const message = `connection ${this.id} to ${this.address} timed out`;
-      const beforeHandshake = this.hello == null;
-
-      if (this[kQueue] != null) {
-        this[kQueue].cb(new MongoNetworkTimeoutError(message, { beforeHandshake }));
-      }
-
-      this[kQueue] = null;
-
-      this.emit(Connection.CLOSE);
-    }, 1).unref(); // No need for this timer to hold the event loop open
   }
 
   onMessage(message: BinMsg | Response) {
