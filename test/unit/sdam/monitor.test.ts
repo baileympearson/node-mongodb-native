@@ -3,10 +3,14 @@ import * as sinon from 'sinon';
 import { setTimeout } from 'timers';
 
 import {
+  buildHelloGenerator,
+  Connection,
   isHello,
   LEGACY_HELLO_COMMAND,
+  Long,
   Monitor,
   MonitorInterval,
+  ObjectId,
   ServerDescription,
   ServerHeartbeatFailedEvent,
   ServerHeartbeatStartedEvent,
@@ -32,6 +36,106 @@ describe('monitoring', function () {
   after(() => mock.cleanup());
   beforeEach(function () {
     return mock.createServer().then(server => (mockServer = server));
+  });
+
+  context('hello construction', function () {
+    const kServer = Symbol.for('server');
+    const makeConnection = (serverApi, helloOk) => ({ serverApi, helloOk } as Connection);
+    const makeMonitor = (heartbeatFrequencyMS, topologyVersion) =>
+      ({
+        options: { heartbeatFrequencyMS },
+        [kServer]: { description: { topologyVersion } }
+      } as any as Monitor);
+
+    context('serverApi undefined, helloOk undefined', () => {
+      it('sets `LEGACY_HELLO_COMMAND` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection(undefined, undefined),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).to.have.property(LEGACY_HELLO_COMMAND, 1);
+        expect(cmd).not.to.have.property('hello');
+      });
+    });
+
+    context('serverApi.version falsy, helloOk undefined', () => {
+      it('sets `LEGACY_HELLO_COMMAND` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection({ version: false }, undefined),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).to.have.property(LEGACY_HELLO_COMMAND, 1);
+        expect(cmd).not.to.have.property('hello');
+      });
+    });
+
+    context('serverApi.version 1, helloOk undefined', () => {
+      it('sets `hello` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection({ version: 1 }, undefined),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).not.to.have.property(LEGACY_HELLO_COMMAND);
+        expect(cmd).to.have.property('hello', 1);
+      });
+    });
+
+    context('serverApi.version 1, helloOk false', () => {
+      it('sets `hello` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection({ version: 1 }, false),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).not.to.have.property(LEGACY_HELLO_COMMAND);
+        expect(cmd).to.have.property('hello', 1);
+      });
+    });
+
+    context('serverApi.version 1, helloOk true', () => {
+      it('sets `hello` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection({ version: 1 }, true),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).not.to.have.property(LEGACY_HELLO_COMMAND);
+        expect(cmd).to.have.property('hello', 1);
+      });
+    });
+
+    context('serverApi.version undefined, helloOk true', () => {
+      it('sets `hello` on the command', async function () {
+        const cmd = await buildHelloGenerator(
+          makeConnection({ version: undefined }, true),
+          makeMonitor(1000, null)
+        ).generate();
+        expect(cmd).not.to.have.property(LEGACY_HELLO_COMMAND);
+        expect(cmd).to.have.property('hello', 1);
+      });
+    });
+
+    context('maxAwaitTimeMS and topologyVersion', () => {
+      context('topologyVersion is null', () => {
+        it('does not set maxAwaitTimeMS or topologyVersion', async () => {
+          const cmd = await buildHelloGenerator(
+            makeConnection({ version: undefined }, true),
+            makeMonitor(1500, null)
+          ).generate();
+          expect(cmd).not.to.have.property('maxAwaitTimeMS');
+          expect(cmd).not.to.have.property('topologyVersion');
+        });
+      });
+
+      context('topologyVersion is non-null', () => {
+        it('does set maxAwaitTimeMS and topologyVersion', async () => {
+          const cmd = await buildHelloGenerator(
+            makeConnection({ version: undefined }, true),
+            makeMonitor(1500, { processId: new ObjectId(), counter: new Long() })
+          ).generate();
+          expect(cmd).to.have.property('maxAwaitTimeMS', 1500);
+          expect(cmd).to.have.property('topologyVersion');
+        });
+      });
+    });
   });
 
   // TODO(NODE-3819): Unskip flaky tests.

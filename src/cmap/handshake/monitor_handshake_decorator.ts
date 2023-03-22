@@ -1,6 +1,7 @@
 import { Long } from 'bson';
 
 import { LEGACY_HELLO_COMMAND } from '../../constants';
+import type { ServerApi } from '../../mongo_client';
 import type { MonitorOptions } from '../../sdam/monitor';
 import type { TopologyVersion } from '../../sdam/server_description';
 import type { HandshakeDecorator } from './handshake_decorator';
@@ -18,6 +19,7 @@ export class MonitorHandshakeDecorator implements HandshakeDecorator {
   monitorOptions: MonitoringOptions;
   topologyVersion: TopologyVersion | null;
   helloOk: boolean;
+  serverApi: ServerApi | null;
 
   /**
    * Instantiate the decorator with the relevant information.
@@ -25,11 +27,13 @@ export class MonitorHandshakeDecorator implements HandshakeDecorator {
   constructor(
     monitorOptions: MonitoringOptions,
     topologyVersion: TopologyVersion | null,
-    helloOk: boolean
+    helloOk: boolean,
+    serverApi: ServerApi | null
   ) {
     this.monitorOptions = monitorOptions;
     this.topologyVersion = topologyVersion;
     this.helloOk = helloOk;
+    this.serverApi = serverApi;
   }
 
   /**
@@ -37,19 +41,20 @@ export class MonitorHandshakeDecorator implements HandshakeDecorator {
    */
   async decorate(handshake: HandshakeDocument): Promise<HandshakeDocument> {
     // If the initial server response has helloOk: true, the monitor can switch to hello.
-    if (this.helloOk) {
+    if (this.serverApi?.version || this.helloOk) {
       handshake.hello = 1;
     } else {
       handshake[LEGACY_HELLO_COMMAND] = 1;
     }
     // Check for streaming protocol and set options if supported.
-    if (this.topologyVersion) {
+    if (this.topologyVersion != null) {
       const maxAwaitTimeMS = this.monitorOptions.heartbeatFrequencyMS;
       handshake.maxAwaitTimeMS = maxAwaitTimeMS;
       handshake.topologyVersion = makeTopologyVersion(this.topologyVersion);
     }
     // Always send helloOk in the handshake.
-    handshake.helloOk = true;
+    // TODO: should we set helloOk on the handshakes?
+    // handshake.helloOk = true;
     return handshake;
   }
 }

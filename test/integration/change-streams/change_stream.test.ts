@@ -1887,8 +1887,13 @@ describe('ChangeStream resumability', function () {
     await utilClient.db(dbName).createCollection(collectionName);
     await utilClient.close();
 
-    client = this.configuration.newClient({ monitorCommands: true });
+    client = this.configuration.newClient({
+      monitorCommands: true,
+      heartbeatFrequencyMS: 100
+    });
+
     client.on('commandStarted', filterForCommands(['aggregate'], aggregateEvents));
+
     collection = client.db(dbName).collection(collectionName);
   });
 
@@ -1961,7 +1966,12 @@ describe('ChangeStream resumability', function () {
 
             expect(change).to.have.property('operationType', 'insert');
 
-            expect(aggregateEvents).to.have.lengthOf(6);
+            expect(
+              aggregateEvents.map(({ commandName, connectionId }) => ({
+                commandName,
+                connectionId
+              }))
+            ).to.have.lengthOf(6);
           }
         );
       }
@@ -2127,7 +2137,12 @@ describe('ChangeStream resumability', function () {
 
             expect(change).to.be.true;
 
-            expect(aggregateEvents).to.have.lengthOf(6);
+            expect(
+              aggregateEvents.map(({ commandName, connectionId }) => ({
+                commandName,
+                connectionId
+              }))
+            ).to.have.lengthOf(6);
           }
         );
       }

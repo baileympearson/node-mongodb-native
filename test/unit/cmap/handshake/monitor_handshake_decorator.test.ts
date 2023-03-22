@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { LEGACY_HELLO_COMMAND, Long, MonitorHandshakeDecorator, ObjectId } from '../../../mongodb';
+import { Long, MonitorHandshakeDecorator, ObjectId } from '../../../mongodb';
 
 describe('MonitorHandshakeDecorator', function () {
   const monitorOptions = {
@@ -14,7 +14,9 @@ describe('MonitorHandshakeDecorator', function () {
       processId: new ObjectId(),
       counter: Long.fromNumber(5)
     };
-    const decorator = new MonitorHandshakeDecorator(monitorOptions, topologyVersion, false);
+    const decorator = new MonitorHandshakeDecorator(monitorOptions, topologyVersion, false, {
+      version: '1'
+    });
 
     it('sets the monitor options', function () {
       expect(decorator.monitorOptions).to.equal(monitorOptions);
@@ -31,34 +33,39 @@ describe('MonitorHandshakeDecorator', function () {
         processId: new ObjectId(),
         counter: Long.fromNumber(5)
       };
-      const decorator = new MonitorHandshakeDecorator(monitorOptions, topologyVersion, false);
+      const decorator = new MonitorHandshakeDecorator(monitorOptions, topologyVersion, false, {
+        version: '1'
+      });
 
       it('add maxAwaitTimeMS and topologyVersion to the handshake', async function () {
         const handshake = await decorator.decorate({});
         expect(handshake).to.deep.equal({
-          [LEGACY_HELLO_COMMAND]: 1,
+          hello: 1,
           maxAwaitTimeMS: monitorOptions.heartbeatFrequencyMS,
-          topologyVersion: topologyVersion,
-          helloOk: true
+          topologyVersion: topologyVersion
         });
       });
     });
 
     context('when a topology version does not exist', function () {
-      const decorator = new MonitorHandshakeDecorator(monitorOptions, null, false);
+      const decorator = new MonitorHandshakeDecorator(monitorOptions, null, false, {
+        version: '1'
+      });
 
       it('returns the handshake with a legacy hello', async function () {
         const handshake = await decorator.decorate({});
-        expect(handshake).to.deep.equal({ [LEGACY_HELLO_COMMAND]: 1, helloOk: true });
+        expect(handshake).to.deep.equal({ hello: 1 });
       });
     });
 
     context('when the server response contains helloOk: true', function () {
-      const decorator = new MonitorHandshakeDecorator(monitorOptions, null, true);
+      const decorator = new MonitorHandshakeDecorator(monitorOptions, null, true, {
+        version: '1'
+      });
 
       it('uses the hello command in the handshake', async function () {
         const handshake = await decorator.decorate({});
-        expect(handshake).to.deep.equal({ hello: 1, helloOk: true });
+        expect(handshake).to.deep.equal({ hello: 1 });
       });
     });
   });
