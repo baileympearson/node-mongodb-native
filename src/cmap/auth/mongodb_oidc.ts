@@ -1,5 +1,9 @@
-import { MongoInvalidArgumentError, MongoMissingCredentialsError } from '../../error';
-import type { HandshakeDocument } from '../connect';
+import {
+  MongoInvalidArgumentError,
+  MongoMissingCredentialsError,
+  MongoRuntimeError
+} from '../../error';
+import type { HandshakeDocument } from '../handshake/handshake_document';
 import { type AuthContext, AuthProvider } from './auth_provider';
 import type { MongoCredentials } from './mongo_credentials';
 import { AwsServiceWorkflow } from './mongodb_oidc/aws_service_workflow';
