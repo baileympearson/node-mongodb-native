@@ -1,8 +1,4 @@
-import {
-  MongoInvalidArgumentError,
-  MongoMissingCredentialsError,
-  MongoRuntimeError
-} from '../../error';
+import { MongoInvalidArgumentError, MongoMissingCredentialsError } from '../../error';
 import type { HandshakeDocument } from '../handshake/handshake_document';
 import { type AuthContext, AuthProvider } from './auth_provider';
 import type { MongoCredentials } from './mongo_credentials';
