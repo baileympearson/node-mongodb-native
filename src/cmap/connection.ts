@@ -49,6 +49,7 @@ import type { ClientMetadata } from './handshake/client_metadata';
 import { MessageStream, type OperationDescription } from './message_stream';
 import { StreamDescription, type StreamDescriptionOptions } from './stream_description';
 import { getReadPreference, isSharded } from './wire_protocol/shared';
+import { ConnectionPool } from './connection_pool';
 
 /** @internal */
 const kStream = Symbol('stream');

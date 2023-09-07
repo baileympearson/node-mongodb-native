@@ -41,6 +41,10 @@ import {
 } from './utils';
 import type { W, WriteConcern, WriteConcernSettings } from './write_concern';
 
+import { defineHelpers }  from './helpers';
+
+defineHelpers();
+
 /** @public */
 export const ServerApiVersion = Object.freeze({
   v1: '1'
@@ -399,6 +403,11 @@ export class MongoClient extends TypedEventEmitter<MongoClientEvents> {
 
   get bsonOptions(): BSONSerializeOptions {
     return this.s.bsonOptions;
+  }
+
+  async [Symbol.asyncDispose]() {
+    console.error('closing!');
+    await this.close();
   }
 
   /**

@@ -51,6 +51,8 @@ import {
   WaitQueueTimeoutError
 } from './errors';
 import { ConnectionPoolMetrics } from './metrics';
+import { defineHelpers, DisposableStack } from '../helpers';
+import { promisify } from 'util';
 
 /** @internal */
 const kServer = Symbol('server');
@@ -97,6 +99,17 @@ export interface ConnectionPoolOptions extends Omit<ConnectionOptions, 'id' | 'g
   loadBalanced: boolean;
   /** @internal */
   minPoolSizeCheckFrequencyMS?: number;
+}
+
+defineHelpers()
+
+export class CheckedOutConnection {
+  constructor(private pool: ConnectionPool, public connection: Connection) { }
+
+  [Symbol.dispose]() {
+    console.error('disposing of connection!');
+    this.pool.checkIn(this.connection);
+  }
 }
 
 /** @internal */
@@ -345,6 +358,13 @@ export class ConnectionPool extends TypedEventEmitter<ConnectionPoolEvents> {
     this.emitAndLog(ConnectionPool.CONNECTION_POOL_READY, new ConnectionPoolReadyEvent(this));
     clearTimeout(this[kMinPoolSizeTimer]);
     this.ensureMinPoolSize();
+  }
+
+  async checkoutSafe(disposableStack: DisposableStack) {
+    const checkout = promisify(this.checkOut.bind(this));
+    const connection = await checkout();
+    disposableStack.defer(() => this.checkIn(connection!));
+    return connection!;
   }
 
   /**

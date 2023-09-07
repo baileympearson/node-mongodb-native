@@ -108,7 +108,8 @@
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",
     "tsd": "^0.28.1",
-    "typescript": "^5.0.4",
+    "tslib": "^2.6.2",
+    "typescript": "^5.2.2",
     "typescript-cached-transpile": "^0.0.6",
     "v8-heapsnapshot": "^1.2.0",
     "yargs": "^17.7.2"

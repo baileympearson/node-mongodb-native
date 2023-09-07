@@ -66,6 +66,7 @@ import type {
 import { Monitor, type MonitorOptions } from './monitor';
 import { compareTopologyVersion, ServerDescription } from './server_description';
 import type { Topology } from './topology';
+import { DisposableStack } from '../helpers';
 
 const stateTransition = makeStateMachine({
   [STATE_CLOSED]: [STATE_CLOSED, STATE_CONNECTING],
@@ -294,6 +295,49 @@ export class Server extends TypedEventEmitter<ServerEvents> {
     }
   }
 
+  async asyncCommand(
+    ns: MongoDBNamespace,
+    cmd: Document,
+    options: CommandOptions,
+  ) {
+    if (ns.db == null || typeof ns === 'string') {
+      throw new MongoInvalidArgumentError('Namespace must not be a string');
+    }
+
+    if (this.s.state === STATE_CLOSING || this.s.state === STATE_CLOSED) {
+      throw new MongoServerClosedError();
+    }
+
+    // Clone the options
+    const finalOptions = Object.assign({}, options, { wireProtocolCommand: false });
+
+    // There are cases where we need to flag the read preference not to get sent in
+    // the command, such as pre-5.0 servers attempting to perform an aggregate write
+    // with a non-primary read preference. In this case the effective read preference
+    // (primary) is not the same as the provided and must be removed completely.
+    if (finalOptions.omitReadPreference) {
+      delete finalOptions.readPreference;
+    }
+
+    const session = finalOptions.session;
+    const conn = session?.pinnedConnection;
+
+    using stack = new DisposableStack();
+    const connection = await this.pool.checkoutSafe(stack);
+    const dispose = () => this.decrementOperationCount();
+    stack.defer(dispose);
+
+    this.incrementOperationCount();
+
+    const handler = new OperationHandler(this, connection, cmd, finalOptions);
+    try {
+      const response = await connection.commandAsync(ns, cmd, finalOptions);
+      return handler.handle(undefined, response);
+    } catch (error) {
+      return handler.handle(error);
+    }
+  }
+
   /**
    * Execute a command
    * @internal
@@ -515,6 +559,79 @@ function isRetryableWritesEnabled(topology: Topology) {
   return topology.s.options.retryWrites !== false;
 }
 
+class OperationHandler {
+  constructor(private server: Server,
+    private connection: Connection,
+    private cmd: Document,
+    private options: CommandOptions | GetMoreOptions | undefined,
+    private session = options?.session) { }
+
+  handle(error, result) {
+    // We should not swallow an error if it is present.
+    if (error == null && result != null) {
+      return result;
+    }
+
+    if (this.options != null && 'noResponse' in this.options && this.options.noResponse === true) {
+      return null;
+    }
+
+    if (!error) {
+      throw new MongoUnexpectedServerResponseError('Empty response with no error');
+    }
+
+    if (!(error instanceof MongoError)) {
+      // Node.js or some other error we have not special handling for
+      throw error;
+    }
+
+    if (connectionIsStale(this.server.pool, this.connection)) {
+      throw error;
+    }
+
+    if (error instanceof MongoNetworkError) {
+      if (this.session && !this.session.hasEnded && this.session.serverSession) {
+        this.session.serverSession.isDirty = true;
+      }
+
+      // inActiveTransaction check handles commit and abort.
+      if (
+        inActiveTransaction(this.session, this.cmd) &&
+        !error.hasErrorLabel(MongoErrorLabel.TransientTransactionError)
+      ) {
+        error.addErrorLabel(MongoErrorLabel.TransientTransactionError);
+      }
+
+      if (
+        (isRetryableWritesEnabled(this.server.topology) || isTransactionCommand(this.cmd)) &&
+        supportsRetryableWrites(this.server) &&
+        !inActiveTransaction(this.session, this.cmd)
+      ) {
+        error.addErrorLabel(MongoErrorLabel.RetryableWriteError);
+      }
+    } else {
+      if (
+        (isRetryableWritesEnabled(this.server.topology) || isTransactionCommand(this.cmd)) &&
+        needsRetryableWriteLabel(error, maxWireVersion(this.server)) &&
+        !inActiveTransaction(this.session, this.cmd)
+      ) {
+        error.addErrorLabel(MongoErrorLabel.RetryableWriteError);
+      }
+    }
+
+    if (
+      this.session &&
+      this.session.isPinned &&
+      error.hasErrorLabel(MongoErrorLabel.TransientTransactionError)
+    ) {
+      this.session.unpin({ force: true });
+    }
+
+    this.server.handleError(error, this.connection);
+
+    throw error;
+  }
+}
 function makeOperationHandler(
   server: Server,
   connection: Connection,
