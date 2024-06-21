@@ -49,6 +49,7 @@ import {
   type MongoDBNamespace,
   supportsRetryableWrites
 } from '../utils';
+import { throwIfWriteConcernError } from '../write_concern';
 import {
   type ClusterTime,
   STATE_CLOSED,
@@ -329,7 +330,9 @@ export class Server extends TypedEventEmitter<ServerEvents> {
 
     try {
       try {
-        return await conn.command(ns, cmd, finalOptions, responseType);
+        const res = await conn.command(ns, cmd, finalOptions, responseType);
+        throwIfWriteConcernError(res);
+        return res;
       } catch (commandError) {
         throw this.decorateCommandError(conn, cmd, finalOptions, commandError);
       }
@@ -341,7 +344,9 @@ export class Server extends TypedEventEmitter<ServerEvents> {
         await this.pool.reauthenticate(conn);
         // TODO(NODE-5682): Implement CSOT support for socket read/write at the connection layer
         try {
-          return await conn.command(ns, cmd, finalOptions, responseType);
+          const res = await conn.command(ns, cmd, finalOptions, responseType);
+          throwIfWriteConcernError(res);
+          return res;
         } catch (commandError) {
           throw this.decorateCommandError(conn, cmd, finalOptions, commandError);
         }

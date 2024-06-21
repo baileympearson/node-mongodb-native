@@ -1,4 +1,4 @@
-import type { Document, Long } from '../bson';
+import type { Long } from '../bson';
 import { CursorResponse } from '../cmap/wire_protocol/responses';
 import { MongoRuntimeError } from '../error';
 import type { Server } from '../sdam/server';
@@ -21,8 +21,6 @@ export interface GetMoreOptions extends OperationOptions {
   maxTimeMS?: number;
   /** TODO(NODE-4413): Address bug with maxAwaitTimeMS not being passed in from the cursor correctly */
   maxAwaitTimeMS?: number;
-
-  useCursorResponse: boolean;
 }
 
 /**
@@ -63,7 +61,7 @@ export class GetMoreOperation extends AbstractOperation {
     server: Server,
     _session: ClientSession | undefined,
     timeoutContext: TimeoutContext
-  ): Promise<Document> {
+  ): Promise<CursorResponse> {
     if (server !== this.server) {
       throw new MongoRuntimeError('Getmore must run on the same server operation began on');
     }
@@ -105,12 +103,7 @@ export class GetMoreOperation extends AbstractOperation {
       ...this.options
     };
 
-    return await server.command(
-      this.ns,
-      getMoreCmd,
-      commandOptions,
-      this.options.useCursorResponse ? CursorResponse : undefined
-    );
+    return await server.command(this.ns, getMoreCmd, commandOptions, CursorResponse);
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Document } from '../bson';
+import { CursorResponse } from '../cmap/wire_protocol/responses';
 import type { Collection } from '../collection';
 import { type AbstractCursorOptions } from '../cursor/abstract_cursor';
 import { MongoCompatibilityError } from '../error';
@@ -362,7 +363,7 @@ export class DropIndexOperation extends CommandOperation<Document> {
 export type ListIndexesOptions = AbstractCursorOptions;
 
 /** @internal */
-export class ListIndexesOperation extends CommandOperation<Document> {
+export class ListIndexesOperation extends CommandOperation<CursorResponse> {
   /**
    * @remarks WriteConcern can still be present on the options because
    * we inherit options from the client/db/collection.  The
@@ -389,7 +390,7 @@ export class ListIndexesOperation extends CommandOperation<Document> {
     server: Server,
     session: ClientSession | undefined,
     timeoutContext: TimeoutContext
-  ): Promise<Document> {
+  ): Promise<CursorResponse> {
     const serverWireVersion = maxWireVersion(server);
 
     const cursor = this.options.batchSize ? { batchSize: this.options.batchSize } : {};
@@ -402,7 +403,7 @@ export class ListIndexesOperation extends CommandOperation<Document> {
       command.comment = this.options.comment;
     }
 
-    return await super.executeCommand(server, session, command, timeoutContext);
+    return await super.executeCommand(server, session, command, timeoutContext, CursorResponse);
   }
 }
 

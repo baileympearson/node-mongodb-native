@@ -161,7 +161,7 @@ export { SrvPollingEvent } from './sdam/srv_polling';
 
 // type only exports below, these are removed from emitted JS
 export type { AdminPrivate } from './admin';
-export type { BSONSerializeOptions, Document } from './bson';
+export type { BSONElement, BSONSerializeOptions, Document } from './bson';
 export type { deserialize, serialize } from './bson';
 export type {
   BulkResult,
@@ -239,8 +239,13 @@ export {
 } from './client-side-encryption/errors';
 export type { MongocryptdManager } from './client-side-encryption/mongocryptd_manager';
 export type {
+  AWSKMSProviderConfiguration,
+  AzureKMSProviderConfiguration,
   ClientEncryptionDataKeyProvider,
-  KMSProviders
+  GCPKMSProviderConfiguration,
+  KMIPKMSProviderConfiguration,
+  KMSProviders,
+  LocalKMSProviderConfiguration
 } from './client-side-encryption/providers/index';
 export type {
   ClientEncryptionTlsOptions,
@@ -301,7 +306,12 @@ export type {
   MongoDBResponse,
   MongoDBResponseConstructor
 } from './cmap/wire_protocol/responses';
-export type { CollectionOptions, CollectionPrivate, ModifyResult } from './collection';
+export type {
+  CollectionOptions,
+  CollectionPrivate,
+  CountDocumentsOptions,
+  ModifyResult
+} from './collection';
 export type {
   COMMAND_FAILED,
   COMMAND_STARTED,
@@ -338,12 +348,12 @@ export type {
   CursorFlag,
   CursorStreamOptions
 } from './cursor/abstract_cursor';
-export type { InternalAbstractCursorOptions } from './cursor/abstract_cursor';
-export type { AggregationCursorOptions } from './cursor/aggregation_cursor';
 export type {
-  ChangeStreamAggregateRawResult,
-  ChangeStreamCursorOptions
-} from './cursor/change_stream_cursor';
+  InitialCursorResponse,
+  InternalAbstractCursorOptions
+} from './cursor/abstract_cursor';
+export type { AggregationCursorOptions } from './cursor/aggregation_cursor';
+export type { ChangeStreamCursorOptions } from './cursor/change_stream_cursor';
 export type {
   ListSearchIndexesCursor,
   ListSearchIndexesOptions
@@ -459,7 +469,6 @@ export type {
   OperationParent
 } from './operations/command';
 export type { CountOptions } from './operations/count';
-export type { CountDocumentsOptions } from './operations/count_documents';
 export type {
   ClusteredCollectionOptions,
   CreateCollectionOptions,
@@ -469,7 +478,6 @@ export type { DeleteOptions, DeleteResult, DeleteStatement } from './operations/
 export type { DistinctOptions } from './operations/distinct';
 export type { DropCollectionOptions, DropDatabaseOptions } from './operations/drop';
 export type { EstimatedDocumentCountOptions } from './operations/estimated_document_count';
-export type { ExecutionResult } from './operations/execute_operation';
 export type { FindOptions } from './operations/find';
 export type {
   FindOneAndDeleteOptions,

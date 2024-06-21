@@ -57,8 +57,7 @@ export class BulkWriteOperation extends AbstractOperation<BulkWriteResult> {
     }
 
     // Execute the bulk
-    const result = await bulk.execute({ ...options, session });
-    return result;
+    return await bulk.execute({ ...options, session });
   }
 }
 

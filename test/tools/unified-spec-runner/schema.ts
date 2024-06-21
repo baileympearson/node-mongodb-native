@@ -182,35 +182,44 @@ export interface StreamEntity {
 
 export type StringOrPlaceholder = string | { $$placeholder: number };
 
+type UnnamedKMSProviders = {
+  aws?: {
+    accessKeyId: StringOrPlaceholder;
+    secretAccessKey: StringOrPlaceholder;
+    sessionToken: StringOrPlaceholder;
+  };
+  azure?: {
+    tenantId: StringOrPlaceholder;
+    clientId: StringOrPlaceholder;
+    clientSecret: StringOrPlaceholder;
+    identityPlatformEndpoint: StringOrPlaceholder;
+  };
+  gcp?: {
+    email: StringOrPlaceholder;
+    privateKey: StringOrPlaceholder;
+    endPoint: StringOrPlaceholder;
+  };
+  kmip?: {
+    endpoint: StringOrPlaceholder;
+  };
+  local?: {
+    key: StringOrPlaceholder;
+  };
+};
 export interface ClientEncryptionEntity {
   id: string;
   clientEncryptionOpts: {
     /** this is the id of the client entity to use as the keyvault client */
     keyVaultClient: string;
     keyVaultNamespace: string;
-    kmsProviders: {
-      aws?: {
-        accessKeyId: StringOrPlaceholder;
-        secretAccessKey: StringOrPlaceholder;
-        sessionToken: StringOrPlaceholder;
-      };
-      azure?: {
-        tenantId: StringOrPlaceholder;
-        clientId: StringOrPlaceholder;
-        clientSecret: StringOrPlaceholder;
-        identityPlatformEndpoint: StringOrPlaceholder;
-      };
-      gcp?: {
-        email: StringOrPlaceholder;
-        privateKey: StringOrPlaceholder;
-        endPoint: StringOrPlaceholder;
-      };
-      kmip?: {
-        endpoint: StringOrPlaceholder;
-      };
-      local?: {
-        key: StringOrPlaceholder;
-      };
+    kmsProviders: UnnamedKMSProviders & {
+      [key: string]:
+        | UnnamedKMSProviders['aws']
+        | UnnamedKMSProviders['gcp']
+        | UnnamedKMSProviders['azure']
+        | UnnamedKMSProviders['kmip']
+        | UnnamedKMSProviders['local']
+        | undefined;
     };
   };
 }
@@ -275,7 +284,20 @@ export type ExpectedEvent = ExpectedCommandEvent | ExpectedCmapEvent | ExpectedS
 export interface ExpectedLogMessagesForClient {
   client: string;
   messages: ExpectedLogMessage[];
+  /**
+   * Optional array of expectedLogMessage objects. Unordered set of messages, which MUST
+   * be ignored on the corresponding client while executing operations. The test runner
+   * MUST exclude all log messages from observed messages that match any of the messages
+   * in ignoreMessages array before messages evaluation. Matching rules used to match
+   * messages in ignoreMessages are identical to match rules used for messages matching.
+   */
   ignoreMessages: ExpectedLogMessage[];
+  /**
+   * Specifies how the messages array is matched against the observed logs. If false,
+   * observed logs after all specified logs have matched MUST cause a test failure;
+   * if true, observed logs after all specified logs have been matched MUST NOT cause
+   * a test failure. Defaults to false.
+   */
   ignoreExtraMessages: boolean;
 }
 

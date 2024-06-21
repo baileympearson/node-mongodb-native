@@ -258,13 +258,13 @@ export function resultCheck(
       }
       for (const [index, value] of expectedEntries) {
         path.push(`[${index}]`);
-        checkNestedDocuments(index, value, false);
+        checkNestedDocuments(index, value, checkExtraKeys);
         path.pop();
       }
     } else {
       for (const [key, value] of expectedEntries) {
         path.push(`.${key}`);
-        checkNestedDocuments(key, value, true);
+        checkNestedDocuments(key, value, checkExtraKeys);
         path.pop();
       }
 
@@ -378,7 +378,7 @@ export function specialCheck(
   } else if (isMatchAsDocumentOperator(expected)) {
     if (typeof actual === 'string') {
       const actualDoc = EJSON.parse(actual, { relaxed: false });
-      resultCheck(actualDoc, expected.$$matchAsDocument as any, entities, path, true);
+      resultCheck(actualDoc, expected.$$matchAsDocument as any, entities, path, checkExtraKeys);
     } else {
       expect.fail(
         `Expected value at path '${path.join('')}' to be string, but received ${inspect(actual)}`
@@ -670,7 +670,7 @@ export function matchesEvents(
   }
 }
 
-export function filterExtraLogs(
+export function filterIgnoredMessages(
   logsToIgnore: ExpectedLogMessage[],
   actual: ExpectedLogMessage[],
   entities: EntitiesMap
@@ -695,11 +695,16 @@ export function filterExtraLogs(
 export function compareLogs(
   expected: ExpectedLogMessage[],
   actual: ExpectedLogMessage[],
-  entities: EntitiesMap
+  entities: EntitiesMap,
+  ignoreExtraMessages = false
 ): void {
-  expect(actual).to.have.lengthOf(expected.length);
+  if (!ignoreExtraMessages) {
+    expect(actual).to.have.lengthOf(expected.length);
+  }
 
   for (const [index, actualLog] of actual.entries()) {
+    if (index >= expected.length && ignoreExtraMessages) return;
+
     const rootPrefix = `expectLogMessages[${index}]`;
     const expectedLog = expected[index];
 

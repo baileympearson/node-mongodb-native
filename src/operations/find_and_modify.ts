@@ -7,7 +7,7 @@ import type { ClientSession } from '../sessions';
 import { formatSort, type Sort, type SortForCmd } from '../sort';
 import { type TimeoutContext } from '../timeout';
 import { decorateWithCollation, hasAtomicOperators, maxWireVersion } from '../utils';
-import type { WriteConcern, WriteConcernSettings } from '../write_concern';
+import { type WriteConcern, type WriteConcernSettings } from '../write_concern';
 import { CommandOperation, type CommandOperationOptions } from './command';
 import { Aspect, defineAspects } from './operation';
 
