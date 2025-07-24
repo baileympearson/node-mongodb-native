@@ -3,11 +3,10 @@ import { type BSONSerializeOptions, type Document, resolveBSONOptions } from './
 import { ChangeStream, type ChangeStreamDocument, type ChangeStreamOptions } from './change_stream';
 import { Collection, type CollectionOptions } from './collection';
 import * as CONSTANTS from './constants';
-import { CursorTimeoutContext } from './cursor/abstract_cursor';
 import { AggregationCursor } from './cursor/aggregation_cursor';
 import { ListCollectionsCursor } from './cursor/list_collections_cursor';
 import { RunCommandCursor, type RunCursorCommandOptions } from './cursor/run_command_cursor';
-import { MONGODB_ERROR_CODES, MongoInvalidArgumentError, MongoServerError } from './error';
+import { MongoInvalidArgumentError } from './error';
 import type { MongoClient, PkFactory } from './mongo_client';
 import type { Abortable, TODO_NODE_3286 } from './mongo_types';
 import type { AggregateOptions } from './operations/aggregate';
@@ -17,8 +16,8 @@ import {
   type CreateCollectionOptions
 } from './operations/create_collection';
 import {
-  DropCollectionOperation,
   type DropCollectionOptions,
+  dropCollections,
   DropDatabaseOperation,
   type DropDatabaseOptions
 } from './operations/drop';
@@ -44,7 +43,6 @@ import {
 import { DbStatsOperation, type DbStatsOptions } from './operations/stats';
 import { ReadConcern } from './read_concern';
 import { ReadPreference, type ReadPreferenceLike } from './read_preference';
-import { TimeoutContext } from './timeout';
 import { DEFAULT_PK_FACTORY, filterOptions, MongoDBNamespace, resolveOptions } from './utils';
 import { WriteConcern, type WriteConcernOptions } from './write_concern';
 
@@ -362,13 +360,13 @@ export class Db {
   ): ListCollectionsCursor<CollectionInfo>;
   listCollections<
     T extends Pick<CollectionInfo, 'name' | 'type'> | CollectionInfo =
-      | Pick<CollectionInfo, 'name' | 'type'>
-      | CollectionInfo
+    | Pick<CollectionInfo, 'name' | 'type'>
+    | CollectionInfo
   >(filter?: Document, options?: ListCollectionsOptions & Abortable): ListCollectionsCursor<T>;
   listCollections<
     T extends Pick<CollectionInfo, 'name' | 'type'> | CollectionInfo =
-      | Pick<CollectionInfo, 'name' | 'type'>
-      | CollectionInfo
+    | Pick<CollectionInfo, 'name' | 'type'>
+    | CollectionInfo
   >(
     filter: Document = {},
     options: ListCollectionsOptions & Abortable = {}
@@ -413,61 +411,15 @@ export class Db {
    * @param options - Optional settings for the command
    */
   async dropCollection(name: string, options?: DropCollectionOptions): Promise<boolean> {
-    options = resolveOptions(this, options);
-    options.session ??= this.client.startSession({ owner: Symbol(), explicit: false });
+    options = resolveOptions(this, { ...options });
+    if (options.session) {
+      return await dropCollections(this, name, options);
+    }
 
-    const timeoutContext = TimeoutContext.create({
-      session: options.session,
-      serverSelectionTimeoutMS: this.client.s.options.serverSelectionTimeoutMS,
-      waitQueueTimeoutMS: this.client.s.options.waitQueueTimeoutMS,
-      timeoutMS: options.timeoutMS
+    return await this.client.withSession({ explicit: false }, async session => {
+      options.session = session;
+      return await dropCollections(this, name, options);
     });
-
-    const encryptedFieldsMap = this.client.s.options.autoEncryption?.encryptedFieldsMap;
-    let encryptedFields: Document | undefined =
-      options.encryptedFields ?? encryptedFieldsMap?.[`${this.databaseName}.${name}`];
-
-    if (!encryptedFields && encryptedFieldsMap) {
-      // If the MongoClient was configured with an encryptedFieldsMap,
-      // and no encryptedFields config was available in it or explicitly
-      // passed as an argument, the spec tells us to look one up using
-      // listCollections().
-      const listCollectionsResult = await this.listCollections(
-        { name },
-        {
-          nameOnly: false,
-          session: options.session,
-          timeoutContext: new CursorTimeoutContext(timeoutContext, Symbol())
-        }
-      ).toArray();
-      encryptedFields = listCollectionsResult?.[0]?.options?.encryptedFields;
-    }
-
-    if (encryptedFields) {
-      const escCollection = encryptedFields.escCollection || `enxcol_.${name}.esc`;
-      const ecocCollection = encryptedFields.ecocCollection || `enxcol_.${name}.ecoc`;
-
-      for (const collectionName of [escCollection, ecocCollection]) {
-        // Drop auxilliary collections, ignoring potential NamespaceNotFound errors.
-        const dropOp = new DropCollectionOperation(this, collectionName, options);
-        try {
-          await executeOperation(this.client, dropOp, timeoutContext);
-        } catch (err) {
-          if (
-            !(err instanceof MongoServerError) ||
-            err.code !== MONGODB_ERROR_CODES.NamespaceNotFound
-          ) {
-            throw err;
-          }
-        }
-      }
-    }
-
-    return await executeOperation(
-      this.client,
-      new DropCollectionOperation(this, name, options),
-      timeoutContext
-    );
   }
 
   /**
