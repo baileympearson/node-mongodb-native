@@ -11,10 +11,7 @@ import type { MongoClient, PkFactory } from './mongo_client';
 import type { Abortable, TODO_NODE_3286 } from './mongo_types';
 import type { AggregateOptions } from './operations/aggregate';
 import { CollectionsOperation } from './operations/collections';
-import {
-  CreateCollectionOperation,
-  type CreateCollectionOptions
-} from './operations/create_collection';
+import { type CreateCollectionOptions, createCollections } from './operations/create_collection';
 import {
   type DropCollectionOptions,
   dropCollections,
@@ -242,10 +239,15 @@ export class Db {
     name: string,
     options?: CreateCollectionOptions
   ): Promise<Collection<TSchema>> {
-    return await executeOperation(
-      this.client,
-      new CreateCollectionOperation(this, name, resolveOptions(this, options)) as TODO_NODE_3286
-    );
+    options = resolveOptions(this, { ...options });
+    if (options.session) {
+      return await createCollections<TSchema>(this, name, options);
+    }
+
+    return await this.client.withSession({ explicit: false }, async session => {
+      options.session = session;
+      return await createCollections<TSchema>(this, name, options);
+    });
   }
 
   /**
