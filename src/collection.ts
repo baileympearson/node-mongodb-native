@@ -33,7 +33,7 @@ import {
   type DeleteResult
 } from './operations/delete';
 import { DistinctOperation, type DistinctOptions } from './operations/distinct';
-import { DropCollectionOperation, type DropCollectionOptions } from './operations/drop';
+import { type DropCollectionOptions } from './operations/drop';
 import {
   EstimatedDocumentCountOperation,
   type EstimatedDocumentCountOptions
@@ -491,10 +491,7 @@ export class Collection<TSchema extends Document = Document> {
    * @param options - Optional settings for the command
    */
   async drop(options?: DropCollectionOptions): Promise<boolean> {
-    return await executeOperation(
-      this.client,
-      new DropCollectionOperation(this.s.db, this.collectionName, options)
-    );
+    return await this.s.db.dropCollection(this.collectionName, options);
   }
 
   /**
