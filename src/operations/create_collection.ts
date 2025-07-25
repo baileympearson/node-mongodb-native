@@ -37,7 +37,8 @@ const ILLEGAL_COMMAND_FIELDS = new Set([
   'bsonRegExp',
   'serializeFunctions',
   'ignoreUndefined',
-  'enableUtf8Validation'
+  'enableUtf8Validation',
+  'isEncryptedCollection'
 ]);
 
 /** @public
