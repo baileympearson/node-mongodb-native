@@ -2,18 +2,16 @@ import type { Document } from '../bson';
 import { CursorResponse, ExplainedCursorResponse } from '../cmap/wire_protocol/responses';
 import { type AbstractCursorOptions, type CursorTimeoutMode } from '../cursor/abstract_cursor';
 import { MongoInvalidArgumentError } from '../error';
-import {
-  decorateWithExplain,
-  type ExplainOptions,
-  validateExplainTimeoutOptions
-} from '../explain';
-import { ReadConcern } from '../read_concern';
-import type { Server } from '../sdam/server';
-import type { ClientSession } from '../sessions';
+import { type ExplainOptions } from '../explain';
+import type { ServerCommandOptions } from '../sdam/server';
 import { formatSort, type Sort } from '../sort';
 import { type TimeoutContext } from '../timeout';
 import { type MongoDBNamespace, normalizeHintField } from '../utils';
-import { type CollationOptions, CommandOperation, type CommandOperationOptions } from './command';
+import {
+  type CollationOptions,
+  type CommandOperationOptions,
+  ModernizedCommandOperation
+} from './command';
 import { Aspect, defineAspects, type Hint } from './operation';
 
 /**
@@ -92,7 +90,9 @@ export interface FindOneOptions extends FindOptions {
 }
 
 /** @internal */
-export class FindOperation extends CommandOperation<CursorResponse> {
+export class FindOperation extends ModernizedCommandOperation<CursorResponse> {
+  override SERVER_COMMAND_RESPONSE_TYPE = CursorResponse;
+
   /**
    * @remarks WriteConcern can still be present on the options because
    * we inherit options from the client/db/collection.  The
@@ -116,167 +116,145 @@ export class FindOperation extends CommandOperation<CursorResponse> {
 
     // special case passing in an ObjectId as a filter
     this.filter = filter != null && filter._bsontype === 'ObjectId' ? { _id: filter } : filter;
+
+    this.SERVER_COMMAND_RESPONSE_TYPE = this.explain ? ExplainedCursorResponse : CursorResponse;
   }
 
   override get commandName() {
     return 'find' as const;
   }
 
-  override async execute(
-    server: Server,
-    session: ClientSession | undefined,
-    timeoutContext: TimeoutContext
-  ): Promise<CursorResponse> {
-    this.server = server;
+  override buildOptions(timeoutContext: TimeoutContext): ServerCommandOptions {
+    return {
+      ...this.options,
+      ...this.bsonOptions,
+      documentsReturnedIn: 'firstBatch',
+      session: this.session,
+      timeoutContext
+    };
+  }
 
+  override handleOk(
+    response: InstanceType<typeof this.SERVER_COMMAND_RESPONSE_TYPE>
+  ): CursorResponse {
+    return response;
+  }
+
+  override buildCommandDocument(): Document {
     const options = this.options;
+    const filter = this.filter;
+    const ns = this.ns;
+    const findCommand: Document = {
+      find: ns.collection,
+      filter
+    };
 
-    let findCommand = makeFindCommand(this.ns, this.filter, options);
-    if (this.explain) {
-      validateExplainTimeoutOptions(this.options, this.explain);
-      findCommand = decorateWithExplain(findCommand, this.explain);
+    if (options.sort) {
+      findCommand.sort = formatSort(options.sort);
     }
 
-    return await server.command(
-      this.ns,
-      findCommand,
-      {
-        ...this.options,
-        ...this.bsonOptions,
-        documentsReturnedIn: 'firstBatch',
-        session,
-        timeoutContext
-      },
-      this.explain ? ExplainedCursorResponse : CursorResponse
-    );
-  }
-}
+    if (options.projection) {
+      let projection = options.projection;
+      if (projection && Array.isArray(projection)) {
+        projection = projection.length
+          ? projection.reduce((result, field) => {
+              result[field] = 1;
+              return result;
+            }, {})
+          : { _id: 1 };
+      }
 
-function makeFindCommand(ns: MongoDBNamespace, filter: Document, options: FindOptions): Document {
-  const findCommand: Document = {
-    find: ns.collection,
-    filter
-  };
-
-  if (options.sort) {
-    findCommand.sort = formatSort(options.sort);
-  }
-
-  if (options.projection) {
-    let projection = options.projection;
-    if (projection && Array.isArray(projection)) {
-      projection = projection.length
-        ? projection.reduce((result, field) => {
-            result[field] = 1;
-            return result;
-          }, {})
-        : { _id: 1 };
+      findCommand.projection = projection;
     }
 
-    findCommand.projection = projection;
-  }
-
-  if (options.hint) {
-    findCommand.hint = normalizeHintField(options.hint);
-  }
-
-  if (typeof options.skip === 'number') {
-    findCommand.skip = options.skip;
-  }
-
-  if (typeof options.limit === 'number') {
-    if (options.limit < 0) {
-      findCommand.limit = -options.limit;
-      findCommand.singleBatch = true;
-    } else {
-      findCommand.limit = options.limit;
+    if (options.hint) {
+      findCommand.hint = normalizeHintField(options.hint);
     }
-  }
 
-  if (typeof options.batchSize === 'number') {
-    if (options.batchSize < 0) {
-      findCommand.limit = -options.batchSize;
-    } else {
-      if (options.batchSize === options.limit) {
-        // Spec dictates that if these are equal the batchSize should be one more than the
-        // limit to avoid leaving the cursor open.
-        findCommand.batchSize = options.batchSize + 1;
+    if (typeof options.skip === 'number') {
+      findCommand.skip = options.skip;
+    }
+
+    if (typeof options.limit === 'number') {
+      if (options.limit < 0) {
+        findCommand.limit = -options.limit;
+        findCommand.singleBatch = true;
       } else {
-        findCommand.batchSize = options.batchSize;
+        findCommand.limit = options.limit;
       }
     }
-  }
 
-  if (typeof options.singleBatch === 'boolean') {
-    findCommand.singleBatch = options.singleBatch;
-  }
+    if (typeof options.batchSize === 'number') {
+      if (options.batchSize < 0) {
+        findCommand.limit = -options.batchSize;
+      } else {
+        if (options.batchSize === options.limit) {
+          // Spec dictates that if these are equal the batchSize should be one more than the
+          // limit to avoid leaving the cursor open.
+          findCommand.batchSize = options.batchSize + 1;
+        } else {
+          findCommand.batchSize = options.batchSize;
+        }
+      }
+    }
 
-  // we check for undefined specifically here to allow falsy values
-  // eslint-disable-next-line no-restricted-syntax
-  if (options.comment !== undefined) {
-    findCommand.comment = options.comment;
-  }
+    if (typeof options.singleBatch === 'boolean') {
+      findCommand.singleBatch = options.singleBatch;
+    }
 
-  if (typeof options.maxTimeMS === 'number') {
-    findCommand.maxTimeMS = options.maxTimeMS;
-  }
+    // we check for undefined specifically here to allow falsy values
+    // eslint-disable-next-line no-restricted-syntax
+    if (options.comment !== undefined) {
+      findCommand.comment = options.comment;
+    }
 
-  const readConcern = ReadConcern.fromOptions(options);
-  if (readConcern) {
-    findCommand.readConcern = readConcern.toJSON();
-  }
+    if (options.max) {
+      findCommand.max = options.max;
+    }
 
-  if (options.max) {
-    findCommand.max = options.max;
-  }
+    if (options.min) {
+      findCommand.min = options.min;
+    }
 
-  if (options.min) {
-    findCommand.min = options.min;
-  }
+    if (typeof options.returnKey === 'boolean') {
+      findCommand.returnKey = options.returnKey;
+    }
 
-  if (typeof options.returnKey === 'boolean') {
-    findCommand.returnKey = options.returnKey;
-  }
+    if (typeof options.showRecordId === 'boolean') {
+      findCommand.showRecordId = options.showRecordId;
+    }
 
-  if (typeof options.showRecordId === 'boolean') {
-    findCommand.showRecordId = options.showRecordId;
-  }
+    if (typeof options.tailable === 'boolean') {
+      findCommand.tailable = options.tailable;
+    }
 
-  if (typeof options.tailable === 'boolean') {
-    findCommand.tailable = options.tailable;
-  }
+    if (typeof options.oplogReplay === 'boolean') {
+      findCommand.oplogReplay = options.oplogReplay;
+    }
 
-  if (typeof options.oplogReplay === 'boolean') {
-    findCommand.oplogReplay = options.oplogReplay;
-  }
+    if (typeof options.timeout === 'boolean') {
+      findCommand.noCursorTimeout = !options.timeout;
+    } else if (typeof options.noCursorTimeout === 'boolean') {
+      findCommand.noCursorTimeout = options.noCursorTimeout;
+    }
 
-  if (typeof options.timeout === 'boolean') {
-    findCommand.noCursorTimeout = !options.timeout;
-  } else if (typeof options.noCursorTimeout === 'boolean') {
-    findCommand.noCursorTimeout = options.noCursorTimeout;
-  }
+    if (typeof options.awaitData === 'boolean') {
+      findCommand.awaitData = options.awaitData;
+    }
 
-  if (typeof options.awaitData === 'boolean') {
-    findCommand.awaitData = options.awaitData;
-  }
+    if (typeof options.allowPartialResults === 'boolean') {
+      findCommand.allowPartialResults = options.allowPartialResults;
+    }
+    if (typeof options.allowDiskUse === 'boolean') {
+      findCommand.allowDiskUse = options.allowDiskUse;
+    }
 
-  if (typeof options.allowPartialResults === 'boolean') {
-    findCommand.allowPartialResults = options.allowPartialResults;
-  }
+    if (options.let) {
+      findCommand.let = options.let;
+    }
 
-  if (options.collation) {
-    findCommand.collation = options.collation;
+    return findCommand;
   }
-
-  if (typeof options.allowDiskUse === 'boolean') {
-    findCommand.allowDiskUse = options.allowDiskUse;
-  }
-
-  if (options.let) {
-    findCommand.let = options.let;
-  }
-
-  return findCommand;
 }
 
 defineAspects(FindOperation, [
