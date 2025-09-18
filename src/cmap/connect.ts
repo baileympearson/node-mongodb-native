@@ -391,9 +391,12 @@ export async function makeSocket(options: MakeConnectionOptions): Promise<Stream
     const connectEvent = useTLS ? 'secureConnect' : 'connect';
     socket
       .once(connectEvent, () => resolve(socket))
-      .once('error', cause =>
-        reject(new MongoNetworkError(MongoError.buildErrorMessage(cause), { cause }))
-      )
+      .once('error', cause => {
+        console.error({ cause });
+        console.error(cause.message);
+        console.error(cause.message.includes('tlsv1'));
+        reject(new MongoNetworkError(MongoError.buildErrorMessage(cause), { cause }));
+      })
       .once('timeout', () => {
         reject(
           new MongoNetworkTimeoutError(
